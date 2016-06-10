@@ -1,0 +1,21 @@
+### Version 1.2.1
+
+# Bug fix
+
+1 - ghap.haplotyping. If a block had no HapAllele the function would stop.
+2 - ghap.blmm. If IDs had a pattern matching with the random column name, the function would stop.
+3 - ghap.blmm. Weights are not used if ordinal=T, but the function would stop anyway in the absence of weights.
+4 - ghap.blmm. Heritability values were computed based on iterations rather than posterior estimates of variance components.
+5 - ghap.kinship. Malfunctioning of batching.
+6 - ghap.kinship and ghap.blup. The scaling factor q (inverse sum of the variances in the columns of the HapGenotype matrix) was not weighted by HapAllele specific weights.
+7 - vignette. The static access to the vignette was broken.
+8 - ghap.assoc. HapBlock test parameterization has been changed to avoid singular H'H matrices.
+
+# Inclusion of new utilities
+
+1 - ghap.mme. Given known variance components, this function speeds up computation of fixed and random effects by simply solving Henderson's mixed model equations.
+2 - ghap.blup. Now outputs the mean genotype for each HapAllele (meaningful for predictions with ghap.profile).
+3 - ghap.profile. Now allows for centering and scaling of genotypes using arbitrary constants.
+4 - ghap.lmm. This function uses L-BGFS-B minimization to obtain maximum likelihood estimates of mixed model parameters.
+5 - The package has now a startup message giving instructions to access the vignette, as well as information regarding citation.
+6 - ghap.simpheno. Extended capabilities to scale the total phenotypic variance and fine tune variance explained by specific haplotypes.

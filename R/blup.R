@@ -25,12 +25,14 @@ ghap.blup<-function(
     haplo$allele.in <- rep(TRUE, times = haplo$nalleles)
     haplo$nalleles.in <- length(which(haplo$allele.in))
   }
+  activealleles <- which(haplo$allele.in)
   if (is.null(weights) == TRUE) {
     weights <- rep(1,times=haplo$nalleles.in)
   }
   if (length(weights) != haplo$nalleles.in) {
     stop("Vector of weights must have the same length as the number of haplotype alleles.")
   }
+  names(weights) <- activealleles
   ids <- rep(NA, times = length(blmm$k))
   for (i in 1:length(ids)) {
     ids[i] <- which(haplo$id == names(blmm$k)[i])
@@ -40,25 +42,26 @@ ghap.blup<-function(
   }
   
   #Compute variance
-  varfun <- function(j) return(var(haplo$genotypes[j,]))
-  sumvar <- sum(unlist(mclapply(X=which(haplo$allele.in),FUN = varfun,  mc.cores = ncores)))
+  varfun <- function(j) return(weights[as.character(j)]*var(haplo$genotypes[j,ids]))
+  sumvar <- sum(unlist(mclapply(X=activealleles,FUN = varfun,  mc.cores = ncores)))
   
   #Compute frequencies
-  freqfun <- function(j) return(sum(haplo$genotypes[j,])/(2*haplo$nsamples.in))
-  freq <- unlist(mclapply(X=which(haplo$allele.in),FUN = freqfun,  mc.cores = ncores))
+  freqfun <- function(j) return(sum(haplo$genotypes[j,ids])/(2*haplo$nsamples.in))
+  freq <- unlist(mclapply(X=activealleles,FUN = freqfun,  mc.cores = ncores))
   
   #Main BLUP function
   gblup.FUN <- function(j) {
     x <- haplo$genotypes[j, ids]
-    x <- x - mean(x)
-    b <- sum(weights[j]*x*blmm$k)
+    cent <- mean(x)
+    x <- x - cent
+    b <- sum(weights[as.character(j)]*x*blmm$k)
     b <- b/sumvar
     varxb <- var(x*b)
-    return(c(b,varxb))
+    return(c(b,varxb,cent))
   }
   
   #Compute effects
-  a <- mclapply(FUN = gblup.FUN, X = which(haplo$allele.in), mc.cores = ncores)
+  a <- mclapply(FUN = gblup.FUN, X = activealleles, mc.cores = ncores)
   a <- data.frame(matrix(unlist(a), nrow=haplo$nalleles.in, byrow=TRUE))
   
   #Output data
@@ -72,6 +75,8 @@ ghap.blup<-function(
   hapreg$FREQ <- freq
   hapreg$VAR <- a[,2]
   hapreg$pVAR <- hapreg$VAR/sum(hapreg$VAR)
+  hapreg$CENTER <- a[,3]
+  hapreg$SCALE <- 1
   
   #Permutation test (optional)
   if(nperm > 1){
@@ -81,7 +86,7 @@ ghap.blup<-function(
     gblup.FUN <- function(j) {
       x <- haplo$genotypes[j, ids]
       x <- x - mean(x)
-      b <- sum(weights[j]*x*blmm$k)
+      b <- sum(weights[as.character(j)]*x*blmm$k)
       b <- b/sumvar
       return(b)
     }
@@ -90,7 +95,7 @@ ghap.blup<-function(
     for(i in 1:nperm){
       cat("Permutation number:",i,"\r")
       blmm$k <- sample(blmm$k,size=length(blmm$k),replace=FALSE)
-      a <- mclapply(FUN = gblup.FUN, X = which(haplo$allele.in), mc.cores = ncores)
+      a <- mclapply(FUN = gblup.FUN, X = activealleles, mc.cores = ncores)
       a <- unlist(a)
       a <- as.numeric(abs(max(a)) > abs(hapreg$SCORE))
       hapreg$P <- hapreg$P + a

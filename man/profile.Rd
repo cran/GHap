@@ -13,7 +13,7 @@ ghap.profile(score, haplo, only.active.samples = TRUE, ncores = 1)
 
 \arguments{
   \item{score}{
-   A data.frame containing six columns: BLOCK, CHR, BP1, BP2, ALLELE, SCORE.
+   A data.frame containing columns: BLOCK, CHR, BP1, BP2, ALLELE, SCORE, CENTER and SCALE.
   }
   \item{haplo}{
    A GHap.haplo object.
@@ -40,7 +40,7 @@ The function returns a data.frame with the following columns:
 }
 
 \details{
-The profile for each individual is calculated as sum(genotypes*score), where genotypes is a vector of number of copies of each haplotype allele and score is a vector of user-defined scores for each haplotype allele. By default, if scores are provided for only a subset of the haplotype alleles, the missing alleles scores will be set to zero. This function has the same spirit as the profiling routine implemented in the \emph{score} option in PLINK (Purcell et al., 2007; Chang et al., 2015).
+The profile for each individual is calculated as sum(b*(x-c)/s), where x is a vector of number of copies of each haplotype allele, c is a constant to center the genotypes (taken from the CENTER column of the score dataframe), s is a constant to scale the genotypes (taken from the SCALE column of the score dataframe), and b is a vector of user-defined scores for each haplotype allele (taken from the SCORE column of the score dataframe). If no centering or scaling is required, the user can set the CENTER and SCALE columns to 0 and 1, respectively. By default, if scores are provided for only a subset of the haplotype alleles, the missing alleles scores will be set to zero. This function has the same spirit as the profiling routine implemented in the \emph{score} option in PLINK (Purcell et al., 2007; Chang et al., 2015).
 }
 
 \author{

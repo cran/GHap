@@ -4,5 +4,5 @@ import(parallel)
 importFrom("stats", "as.formula", "lm", "lm.fit", "model.frame",
              "model.matrix", "model.response", "na.omit", "pbinom",
              "pchisq", "pf", "pnorm", "ppois", "qchisq", "qnorm",
-             "rchisq", "rnorm", "runif", "sd", "var")
+             "rchisq", "rnorm", "runif", "sd", "var","optim")
 importFrom("utils", "read.table", "write.table","untar")

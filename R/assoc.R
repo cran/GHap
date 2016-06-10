@@ -89,25 +89,126 @@ ghap.assoc<-function(
       hapalleles <- which(haplo$block == j)
       nalleles <- length(hapalleles)
       X <- as.matrix(haplo$genotypes[hapalleles,ids])
-      if(nalleles > 1){
-        X <- t(X)
-        X <- scale(X)
-        X <- blmm$w*X
-        Xp <- t(X)
-      }else{
-        X <- scale(X)
-        X <- blmm$w*X
-        Xp <- t(X)
+      if(nalleles == 0){
+        nu1 <- NA
+        nu2 <- NA
+        ftest <- NA
+      }else if(nalleles == 1){
+        freq <- sum(X)/(2*haplo$nsamples.in)
+        if(freq == 1){
+          nu1 <- NA
+          nu2 <- NA
+          ftest <- NA
+        }else{
+          X[X == 0] <- 2*freq
+          X[X == 1] <- -(1 - 2*freq)
+          X[X == 2] <- -2*(1 - freq)
+          X <- blmm$w*X
+          XpXi <- 1/(sum(X^2))
+          Xpy <- sum(X*blmm$residuals)
+          b <- XpXi*Xpy
+          Xb <- sum(X*b)
+          RSS <- sum((blmm$residuals - Xb)^2)
+          ESS <- sum((Xb - mean(blmm$residuals))^2)
+          nu1 <- 1
+          nu2 <- length(blmm$residuals)-1
+          ftest <- (ESS/nu1)/(RSS/nu2)
+        }
+      }else if(nalleles == 2){
+        freq <- rowSums(X)/(2*haplo$nsamples.in)
+        if(sum(freq) == 1){
+          haporder <- order(rank(freq))
+          freq <- freq[haporder]
+          freq <- freq[-1]
+          X <- X[haporder,]
+          X <- X[-1,]
+          X[X == 0] <- 2*freq
+          X[X == 1] <- -(1 - 2*freq)
+          X[X == 2] <- -2*(1 - freq)
+          X <- blmm$w*X
+          XpXi <- 1/(sum(X^2))
+          Xpy <- sum(X*blmm$residuals)
+          b <- XpXi*Xpy
+          Xb <- sum(X*b)
+          RSS <- sum((blmm$residuals - Xb)^2)
+          ESS <- sum((Xb - mean(blmm$residuals))^2)
+          nu1 <- 1
+          nu2 <- length(blmm$residuals)-1
+          ftest <- (ESS/nu1)/(RSS/nu2)
+        }else{
+          for(i in 1:nrow(X)){
+            x <- X[i,]
+            x[x == 0] <- 2*freq[i]
+            x[x == 1] <- -(1 - 2*freq[i])
+            x[x == 2] <- -2*(1 - freq[i])
+            X[i,] <- x
+          }
+          Xp <- X
+          X <- t(X)
+          X <- blmm$w*X
+          XpXi <- svd(Xp%*%X)
+          XpXi <- XpXi$v%*%diag(1/XpXi$d)%*%t(XpXi$u)
+          Xpy <- Xp%*%blmm$residuals
+          b <- XpXi%*%Xpy
+          Xb <- X%*%b
+          RSS <- sum((blmm$residuals - Xb)^2)
+          ESS <- sum((Xb - mean(blmm$residuals))^2)
+          nu1 <- nalleles-1
+          nu2 <- length(blmm$residuals)-nalleles-1
+          ftest <- (ESS/nu1)/(RSS/nu2)
+        }
+      }else if(nalleles > 2){
+        freq <- rowSums(X)/(2*haplo$nsamples.in)
+        if(sum(freq) == 1){
+          haporder <- order(rank(freq))
+          freq <- freq[haporder]
+          freq <- freq[-1]
+          X <- X[haporder,]
+          X <- X[-1,]
+          for(i in 1:nrow(X)){
+            x <- X[i,]
+            x[x == 0] <- 2*freq[i]
+            x[x == 1] <- -(1 - 2*freq[i])
+            x[x == 2] <- -2*(1 - freq[i])
+            X[i,] <- x
+          }
+          Xp <- X
+          X <- t(X)
+          X <- blmm$w*X
+          XpXi <- svd(Xp%*%X)
+          XpXi <- XpXi$v%*%diag(1/XpXi$d)%*%t(XpXi$u)
+          Xpy <- Xp%*%blmm$residuals
+          b <- XpXi%*%Xpy
+          Xb <- X%*%b
+          RSS <- sum((blmm$residuals - Xb)^2)
+          ESS <- sum((Xb - mean(blmm$residuals))^2)
+          nu1 <- nalleles-1
+          nu2 <- length(blmm$residuals)-nalleles-1
+          ftest <- (ESS/nu1)/(RSS/nu2)
+        }else{
+          for(i in 1:nrow(X)){
+            x <- X[i,]
+            x[x == 0] <- 2*freq[i]
+            x[x == 1] <- -(1 - 2*freq[i])
+            x[x == 2] <- -2*(1 - freq[i])
+            X[i,] <- x
+          }
+          Xp <- X
+          X <- t(X)
+          X <- blmm$w*X
+          XpXi <- svd(Xp%*%X)
+          XpXi <- XpXi$v%*%diag(1/XpXi$d)%*%t(XpXi$u)
+          Xpy <- Xp%*%blmm$residuals
+          b <- XpXi%*%Xpy
+          Xb <- X%*%b
+          RSS <- sum((blmm$residuals - Xb)^2)
+          ESS <- sum((Xb - mean(blmm$residuals))^2)
+          nu1 <- nalleles-1
+          nu2 <- length(blmm$residuals)-nalleles-1
+          ftest <- (ESS/nu1)/(RSS/nu2)
+          
+        }
       }
-      XpXi <- solve(Xp%*%X)
-      Xpy <- Xp%*%blmm$residuals
-      b <- XpXi%*%Xpy
-      Xb <- X%*%b
-      RSS <- sum((blmm$residuals - Xb)^2)
-      ESS <- sum((Xb - mean(blmm$residuals))^2)
-      nu1 <- nalleles
-      nu2 <- length(blmm$residuals)-nalleles
-      ftest <- (ESS/nu1)/(RSS/nu2)
       return(c(nalleles,nu1,nu2,ftest))
     }
     

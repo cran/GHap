@@ -26,7 +26,7 @@ ghap.blmm(fixed,random,weights=NULL,ordinal=FALSE,env.eff=FALSE,data,K,vu=4,vp=4
    A logical value indicating if responses are ordered categorical values (default=FALSE).
   }
   \item{env.eff}{
-   A logical value indicating if permenant environmental effects should be included (default=FALSE).
+   A logical value indicating if permanent environmental effects should be included (default=FALSE).
   }
   \item{data}{
    A dataframe containing the data.
@@ -99,10 +99,10 @@ The returned GHap.blmm object is a list with the following items:
   A numeric value for the posterior mean of the residual variance.
  }
  \item{h2}{
-  A numeric value for the posterior mean of the variance explained by correlated random effects.
+  A numeric value for the posterior mean of the variance explained by correlated random effects only.
  }
   \item{H2}{
-  A numeric value for the posterior mean of the variance explained by permanent environmental effects. This value is suppressed if env.eff=FALSE.
+  A numeric value for the posterior mean of the variance explained by random effects. This value is suppressed if env.eff=FALSE.
  }
  \item{k}{
   A numeric vector containing the solutions for \eqn{\mathbf{K}^{-1}\mathbf{\hat{u}}}. This vector is used by the \code{\link{ghap.blup}} function.

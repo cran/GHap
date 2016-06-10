@@ -1,7 +1,7 @@
 ---
-title: "The **GHap** Package (Version 1.2.0)"
+title: "The **GHap** Package (Version 1.2.1)"
 author: "Yuri Tani Utsunomiya and Marco Milanesi"
-date: "1 May 2016"
+date: "9 Jun 2016"
 output:
   pdf_document:
     highlight: haddock
@@ -328,11 +328,11 @@ Please notice that when HapAlleles are prunned out by frequency the block statis
 
 ###HapAllele relationship matrix and PCA
 
-Briefly, let $\mathbf{H}$ be the centered $n$ x $m$ matrix of HapGenotypes, where $n$ is the number of observations and $m$ is the number of HapAlleles. Also, we define $q$ as the inverse sum of variances in the columns of $\mathbf{H}$. The HapAllele covariance among individuals can be computed as:
+Briefly, let $\mathbf{H}$ be the centered $n$ x $m$ matrix of HapGenotypes, where $n$ is the number of observations and $m$ is the number of HapAlleles. The HapAllele covariance among individuals can be computed as:
 
 $$\mathbf{K} = q\mathbf{HDH}'$$
 
-where $\mathbf{D} = \text{diag}(d_i)$, and $d_i$ is the weight of HapAllele $i$ (default $d_i = 1$). Notice that this is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008). The example below computes a kinship matrix from HapGenotypes and plots the first two eigenvectors of a singular value decomposition (principal components analysis) of this matrix.
+where $\mathbf{D} = \text{diag}(d_i)$, $d_i$ is the weight of HapAllele $i$ (default $d_i = 1$), and $q$ is the inverse weighted sum of variances in the columns of $\mathbf{H}$. Notice that this is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008). The example below computes a kinship matrix from HapGenotypes and plots the first two eigenvectors of a singular value decomposition (principal components analysis) of this matrix.
 
 ```r
 # Reactivate all samples
@@ -490,17 +490,42 @@ head(ancestry[ancestry$ORIGIN != "UNK" & ancestry$FREQ.TEST > 0,-c(2:4)])
 
 ###Linear mixed model analysis
 
-The linear mixed model procedure in **GHap** is implemented under a Bayesian framework, inspired by similar models and algorithms described elsewhere (Wang et al., 1994; Sorensen et al., 1995; Pérez and de Los Campos, 2015). Greater details of this framework can be found in the **Appendix**. The model fitted by the `ghap.blmm()` function is:
+The linear mixed model procedure in **GHap** is implemented under two different frameworks: 1 - Bayesian estimation via Gibbs sampling, inspired by similar models and algorithms described elsewhere (Wang et al., 1994; Sorensen et al., 1995; Pérez and de Los Campos, 2015); and 2 - frequentist estimation via maximum likelihood. Greater details of these frameworks can be found in the **Appendix**. The targeted model is:
 
 $$\mathbf{y} = \mathbf{Xb} + \mathbf{Zu} + \mathbf{Zp} + \mathbf{e}$$
 
-where $\mathbf{X}$ is a $n$ x $p$ matrix relating the $n$ records in $\mathbf{y}$ to the $p$ fixed effects in $\mathbf{b}$, $\mathbf{Z}$ is a $n$ x $m$ incidence matrix relating the $n$ records in $\mathbf{y}$ to the $m$ random effects in $\mathbf{u}$ (with variance-covariance $\mathbf{K}\sigma_u^2$) and $\mathbf{p}$ (with variance-covariance $\mathbf{I}\sigma_p^2$), and $\mathbf{e}$ is the vector of residuals (with variance-covariance $\mathbf{W}\sigma_e^2$). Here we assume residuals are independent, such that $\mathbf{W} = \text{diag}(w_i)$. Also, if we let $\mathbf{K}$ be the HapAllele relationship matrix, then $\mathbf{u}$ becomes the HapAllele-based polygenic effects/breeding values, and $\sigma_u^2$ becomes the variance due to HapAlleles. Importantly, any arbitrary $\mathbf{K}$ matrix is admitted, such that one may also use the `ghap.blmm` to fit models combining pedigree and haplotype relationships (e.g., single-step GWAS analysis). Although including permanent environmental effects $\mathbf{p}$ may be beneficial for the analysis of repeated measurements, the user can decide whether these should be included (the default model does not include these effects).
+where $\mathbf{X}$ is a $n$ x $p$ matrix relating the $n$ records in $\mathbf{y}$ to the $p$ fixed effects in $\mathbf{b}$, $\mathbf{Z}$ is a $n$ x $m$ incidence matrix relating the $n$ records in $\mathbf{y}$ to the $m$ random effects in $\mathbf{u}$ (with variance-covariance $\mathbf{K}\sigma_u^2$) and $\mathbf{p}$ (with variance-covariance $\mathbf{I}\sigma_p^2$), and $\mathbf{e}$ is the vector of residuals (with variance-covariance $\mathbf{W}\sigma_e^2$). Here we assume residuals are independent, such that $\mathbf{W} = \text{diag}(w_i)$. Also, if we let $\mathbf{K}$ be the HapAllele relationship matrix, then $\mathbf{u}$ becomes the HapAllele-based polygenic effects/breeding values, and $\sigma_u^2$ becomes the variance due to HapAlleles. Importantly, any arbitrary $\mathbf{K}$ matrix is admitted, such that one may fit models combining pedigree and haplotype relationships (e.g., single-step GWAS analysis). Although including permanent environmental effects $\mathbf{p}$ may be beneficial for the analysis of repeated measurements, the user can decide whether these should be included (the default model does not include these effects).
 
-The likelihood of the data given the parameters is assumed:
+When variance components are known, solutions of fixed and random effects can be obtained with the `ghap.mme()` function using Henderson's mixed model equations:
+
+$$\begin{bmatrix}
+    \mathbf{X'W^{-1}X} & \mathbf{X'W^{-1}Z} & \mathbf{X'W^{-1}Z}\\
+    \mathbf{Z'W^{-1}X} & \mathbf{Z'W^{-1}Z} + \mathbf{K^{-1}}\frac{\sigma_e^2}{\sigma_u^2} & \mathbf{Z'W^{-1}Z}\\
+    \mathbf{Z'W^{-1}X} & \mathbf{Z'W^{-1}Z} & \mathbf{Z'W^{-1}Z} + \mathbf{I}\frac{\sigma_e^2}{\sigma_p^2}\\
+  \end{bmatrix}
+  \begin{bmatrix}
+    \mathbf{\hat{b}}\\
+    \mathbf{\hat{u}}\\
+    \mathbf{\hat{p}}\\
+  \end{bmatrix} =
+  \begin{bmatrix}
+    \mathbf{X'W^{-1}y}\\
+    \mathbf{Z'W^{-1}y}\\
+    \mathbf{Z'W^{-1}y}\\
+  \end{bmatrix}
+$$
+
+Otherwise, the Bayesian framework implemented in `ghap.blmm()` or the frequentist framework implemented in `ghap.lmm()` can be used to obtain estimates of model parameters. For the frequentist approach, the likelihood of the data given the parameters is assumed:
+
+$$\mathbf{y} \mid \mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_u^2, \sigma_p^2, \sigma_e^2 \sim N(\mathbf{Xb},\mathbf{V})$$
+
+where $\mathbf{V} = \mathbf{ZKZ'}\sigma_{u}^2 + \mathbf{ZZ'}\sigma_{p}^2 + \mathbf{W}\sigma_{e}^2$. The negative log-likelihood is minimized using a quasi-Newton method with box constraints.
+
+In the case of the Bayesian method, the likelihood of the data given the parameters is assumed:
 
 $$\mathbf{y} \mid \mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_u^2, \sigma_p^2, \sigma_e^2 \sim N(\mathbf{Xb} + \mathbf{Zu} + \mathbf{Zp},\mathbf{W}\sigma_{e}^2)$$
 
-In this setting, the parameters we wish to estimate are $\mathbf{b}$, $\mathbf{u}$, $\sigma_u^2$ and $\sigma_e^2$, for which we assign the following prior distributions:
+In this setting, the parameters we wish to estimate are $\mathbf{b}$, $\mathbf{u}$, $\mathbf{p}$, $\sigma_u^2$, $\sigma_p^2$ and $\sigma_e^2$, for which we assign the following prior distributions:
 
 $$\mathbf{b} \propto \text{constant}$$
 $$\mathbf{u} \mid \sigma_u^2 \sim N(0,\mathbf{K}\sigma_{u}^2)$$
@@ -515,11 +540,11 @@ $$\text{posterior} \propto \text{likelihood}\times\text{prior}$$
 
 such that the full posterior distribution can be written as:
 
-$$Pr(\mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_{u}^2, \sigma_{p}^2, \sigma_{e}^2 \mid \mathbf{y}) \propto Pr(\mathbf{y} \mid \mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_{u}^2, \sigma_{p}^2, \sigma_{e}^2)Pr(\mathbf{u} \mid \sigma_{u}^2)Pr(\mathbf{p} \mid \sigma_{p}^2)Pr(\sigma_{u}^2)Pr(\sigma_{e}^2)$$
+$$Pr(\mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_{u}^2, \sigma_{p}^2, \sigma_{e}^2 \mid \mathbf{y}) \propto Pr(\mathbf{y} \mid \mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_{u}^2, \sigma_{p}^2, \sigma_{e}^2)Pr(\mathbf{u} \mid \sigma_{u}^2)Pr(\mathbf{p} \mid \sigma_{p}^2)Pr(\sigma_{u}^2)Pr(\sigma_{p}^2)Pr(\sigma_{e}^2)$$
 
 The `ghap.blmm()` function uses a Gibbs sampling algorithm to obtain samples from the marginal conditional posterior distribution of each parameter. The Markov Chain is ran for a user-specified number of Monte Carlo simulations, and estimates for the posterior means of the parameters are obtained by averaging over simulations. As the Makov Chain is allowed to walk over the entire domain of the posterior distribution, effects of local maxima are mitigated by averaging over simulations, such that parameter estimates may better represent the values under the global maxima.
 
-The `ghap.blmm()` function accommodates repeated measurements through $\mathbf{Z}$ and heteroskedastic residuals through $\mathbf{W}$. The function can also take ordered categorical data as response. This is achieved by assuming that categories emerge from thresholds of a latent normal variable (i.e., "liability"). We use data augmentation to sample thresholds and observations from the underlying latent variable, which we then treat as responses in the main algorithm.
+Different from other GWAS tools, **GHap** accommodates repeated measurements through $\mathbf{Z}$ and heteroskedastic residuals through $\mathbf{W}$. The package can also deal with ordered categorical data as response under the Bayesian framework. This is achieved by assuming that categories emerge from thresholds of a latent normal variable (i.e., "liability"). We use data augmentation to sample thresholds and observations from the underlying latent variable, which we then treat as responses in the main algorithm.
 
 In the example below we simulate a quantitative trait with 50% heritability, where a major HapAllele accounts for 30% of the genetic variance. We use the same data to illustrate a binary trait that emerged from thresholding an underlying quantitative trait.
 
@@ -537,7 +562,27 @@ sim$data$phenotype2[sim$data$phenotype < thr] <- 0
 sim$data$phenotype2[sim$data$phenotype >= thr] <- 1
 ```
 
-In the example below, we fit the simulated phenotypes including only an intercept as fixed effect. Here a single Markov chain is ran with 500 Monte Carlo simulations and a thinning interval of 1. Analyses of empirical data may require larger numbers, and we recommend using at least 100 simulations as burn-in, 1000 main simulations and a minimum thinning interval of 2. Also, running two or more parallel Markov chains may be beneficial to speed up computations and assess variance across independent runs (i.e., evaluate posterior convergence).
+In the example below, we fit the simulated phenotypes including only an intercept as fixed effect. If we assume known variances:
+
+```r
+#Henderson's mixed model equations
+model <- ghap.mme(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K
+                  varcomp = c(sim$vare,sim$varu))
+plot(model$u,sim$u, ylab="True Breeding Value", xlab="Estimated Breeding Value")
+cor(model$u,sim$u)
+```
+
+With unkwown variances we have to estimate model parameters with either `ghap.lmm()` or `ghap.blmm()`. With `ghap.lmm()`, the model is fitted by running:
+
+```r
+#Continuous model
+model <- ghap.lmm(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K)
+model$h2
+plot(model$u,sim$u, ylab="True Breeding Value", xlab="Estimated Breeding Value")
+cor(model$u,sim$u)
+```
+
+Please notice that currently `ghap.lmm()` can only handle quantitative traits. Alternatively, we can use `ghap.blmm()`. Here a single Markov chain is ran with 500 Monte Carlo simulations and a thinning interval of 1. Analyses of empirical data may require larger numbers, and we recommend using at least 100 simulations as burn-in, 1000 main simulations and a minimum thinning interval of 2. Also, running two or more parallel Markov chains may be beneficial to speed up computations and assess variance across independent runs (i.e., evaluate posterior convergence).
 
 ```r
 #Continuous model
@@ -591,24 +636,27 @@ The user must be aware of two known caveats associated with this approach:
 
 2 - Each HapAllele being tested is also included in the kinship matrix, such that the HapAllele is included twice in the model: as fixed and random effect. This problem is known as proximal contamination (Listgarten et al., 2012).
 
-In the first case, we can use genomic control to recover p-values to an unbiased scale (Devlin and Roeder, 1999; Amin et al., 2007). However, not much can be done regarding the estimates of the effects. As a general recommendation, if the user is only interested in p-values, the ghap.assoc analysis should be sufficient. When effect estimates are of interest, the user can select genome-wide significant HapAlleles and include them as fixed effects in the full model in ghap.blmm. For the second case, a leave-one-chromosome-out (LOCO analysis) procedure can mitigate proximal contamination (Yang et al., 2014).
+In the first case, we can use genomic control to recover p-values to an unbiased scale (Devlin and Roeder, 1999; Amin et al., 2007). However, not much can be done regarding the estimates of the effects. As a general recommendation, if the user is only interested in p-values, the `ghap.assoc()` analysis should be sufficient. When effect estimates are of interest, the user can select genome-wide significant HapAlleles and include them as fixed effects in the full model in `ghap.mme()`. For the second case, a leave-one-chromosome-out (LOCO analysis) procedure can mitigate proximal contamination (Yang et al., 2014).
 
 ###GWAS treating HapBlocks as fixed effects
 
-**GHap** also allows testing HapBlocks for association. If the argument type in `ghap.assoc()` is supplied with the option "HapBlock" instead of the default "HapAllele", all $m$ HapAlleles within a block are fitted simultaneously:
+**GHap** also supports HapBlock-based association. If the argument type in `ghap.assoc()` is supplied with the option "HapBlock" instead of the default "HapAllele", blocks are tested using the parameterization suggested by Da (2015). Briefly, for a given HapBlock, let HapAlleles $1$, $2$, ..., $m$ have frequencies $p_1$, $p_2$, ..., $p_m$. Also, let $\alpha_{1j}$ be the average effect of substituting HapAllele $1$ by HapAllele $j$, such that there are $m - 1$ independent substitution effects to be estimated. Under this framework, least squares estimates of substitution effects are obtained as:
 
-$$\hat{\mathbf{a}} = (\mathbf{H}'\mathbf{H})^{-1}\mathbf{H}'\mathbf{y}_\text{adj}$$
+$$\hat{\mathbf{\alpha}} = (\mathbf{M}'\mathbf{M})^{-1}\mathbf{M}'\mathbf{y}_\text{adj}$$
 
-where $\mathbf{H}$ is the $n$ x $m$ sub-HapGenotypes matrix for the HapAlleles within the block. Then, given the explained ($ESS$) and the residual ($RSS$) sum of squares, an F test is computed instead of the chi-squared test:
+where $\mathbf{M}$ is a $n$ x $(m - 1)$ centered HapGenotypes matrix for the HapAlleles within the block. Each
+entry $m_{ij}$ of this matrix takes values $2p_j$, $-(1-2p_j)$ and $-2(1-p_j)$ for HapGenotypes $0$, $1$ and $2$, respectively. If the HapAllele frequencies sum to 1 (i.e., no frequency prunning was used by the user during haplotyping), the `ghap.assoc()` takes HapAllele $1$ to be the one presenting the smallest frequency within each block. Otherwise, the function assumes that the substitution effects of the pruned HapAlleles are known to be zero, and the contrast is carried out based on a phantom HapAllele $1$.
+
+Then, given the explained ($ESS$) and the residual ($RSS$) sum of squares, an F test is computed instead of the chi-squared test:
 
 $$F = \frac{ESS/\nu_1}{RSS/\nu_2}$$
-$$ESS = (\mathbf{H}\hat{\mathbf{a}} - \hat{\mu}_y)'(\mathbf{H}\hat{\mathbf{a}} - \hat{\mu}_y)$$
-$$RSS = (\mathbf{y}_\text{adj} - \mathbf{H}\hat{\mathbf{a}})'(\mathbf{y}_\text{adj} - \mathbf{H}\hat{\mathbf{a}})$$
+$$ESS = (\mathbf{M}\hat{\mathbf{\alpha}} - \hat{\mu}_y)'(\mathbf{M}\hat{\mathbf{\alpha}} - \hat{\mu}_y)$$
+$$RSS = (\mathbf{y}_\text{adj} - \mathbf{M}\hat{\mathbf{\alpha}})'(\mathbf{y}_\text{adj} - \mathbf{M}\hat{\mathbf{\alpha}})$$
 $$\hat{\mu}_y = \frac{1}{N} \sum_{i=1}^{n} y_i$$
-$$\nu_1 = m$$
-$$\nu_2 = n - m$$
+$$\nu_1 = m - 1$$
+$$\nu_2 = n - m - 1$$
 
-Under the null hypothesis that the variance due to the HapBlock is zero $F \sim F(\nu_1,\nu_2)$.
+Under the null hypothesis $VAR(\mathbf{M}\alpha) = 0$ (i.e, variance due to the HapBlock is zero) we have $F \sim F(\nu_1,\nu_2)$.
 
 ```r
 #HapBlock GWAS
@@ -622,7 +670,7 @@ abline(v=(haplo$bp1[1000]+haplo$bp2[1000])/2e+6,lty=3)
 ```
 ###GWAS treating HapAlleles as random effects
 
-Recall the model fitted by the `ghap.blmm()` function:
+Recall the linear mixed model:
 
 $$\mathbf{y} = \mathbf{Xb} + \mathbf{Zu} + \mathbf{Zp} + \mathbf{e}$$
 
@@ -661,7 +709,7 @@ abline(v=(haplo$bp1[1000]+haplo$bp2[1000])/2e+6,lty=3)
 abline(h=-log10(0.05))
 ```
 
-It has been suggested that recallibrating estimates based on an iterative re-weighting procedure could aliviate the effects of shrinkage and improve estimation of random effects (Wang et al., 2012). Briefly, the method consists in computing HapAllele weights based on the BLUP solutions, computing a new weighted relationship matrix, fitting the linear mixed model with the new matrix, and converting the new estimated breeding values in updated BLUP solutions for HapAlleles. The example below shows that a single iteration in the simulated data can substantially improve the estimate of our major HapAllele effect.
+It has been suggested that recallibrating estimates based on an iterative re-weighting procedure could aliviate the effects of shrinkage and improve estimation of random effects (Wang et al., 2012). Briefly, the method consists in computing HapAllele weights based on the BLUP solutions, computing a new weighted relationship matrix, fitting the linear mixed model with the new matrix, and converting the new estimated breeding values in updated BLUP solutions for HapAlleles. The example below shows that a single iteration in the simulated data can substantially improve the estimate of our major HapAllele effect. It has been suggested that 2 to 4 updates may be required.
 
 ```r
 #HapAllele weights
@@ -671,7 +719,8 @@ w <- nrow(blup)*blup$pVAR
 K <- ghap.kinship(haplo, weights = w, batchsize = 100)
 
 #Linear mixed model fitting
-model <- ghap.blmm(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K)
+model <- ghap.mme(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K
+                  varcomp = c(model$vare,model$varu))
 
 #Re-weighted BLUP solutions
 blup <- ghap.blup(blmm = model, haplo = haplo, weights = w, ncores=2)
@@ -718,6 +767,8 @@ head(profile)
 #   5 ASW NA20348 -36.271198
 #   6 ASW NA20300  40.912226
 ```
+
+
 ###Using GHap outputs in third-party software
 
 When the haplotyping procedure is performed using very large datasets, post hoc analyses may be too computationally demanding to be performed in **R**. Also, existing pipelines designed to analyze bi-allelic SNP data can be extended to the analysis of haplotypes by simply incorporating the output generated by the `ghap.hap2tped()` function in **GHap**. This function creates a set of files that mimic a standard PLINK (Purcell et al., 2007; Chang et al., 2015) tped file, where HapAllele counts 0, 1 and 2 are recoded as NN, NH and HH genotypes (N = NULL and H = haplotype allele), as if HapAlleles were bi-alelic markers. This codification is acceptable for any given analysis relying on genotype counts, as long as the user specifies that the analysis should be done using the H allele as reference for counts. You can specify reference alleles using the .tref file in PLINK with the reference-allele command.The name for each pseudo-marker is composed by a concatenation (separated by "_") of block name, start, end, and haplotype allele identity. Pseudo-marker positions are computed as (start+end)/2.
@@ -743,6 +794,14 @@ plink --tfile example --reference-allele example.tref --make-bed --out example
 #Correlations and scale with the GHap package are almost perfect (r = 0.999)
 plink --bfile example --reference-allele example.tref --pca 2 --out example
 ```
+
+
+###Notes on handling multiple chromosomes and analysis of single marker data
+
+By default **GHap** works at single chromosome data, specially when it comes to the haplotyping procedure. However, once HapAlleles have been called on each chromosome, the user can choose to load one chromosome at a time or to load all chromosomes together with *ghap.loadhaplo()*. This can be typically achieved by the use of the *ghap.mergehaplo()* function, or alternatively by concatenation of single chromosome files.
+
+You can also fool **GHap** to take in single SNP data (say you wish to compare haplotype x single SNP association results). To do so, you only need to see SNPs as distinct 1bp HapBlocks, and count number of copies of a particular allele (e.g., minor or reference allele). Then, *ghap.loadhaplo()* will naturally load single SNP data. Be aware that for some analyses special consideration may be required, so be sure that you know exactly what you are doing!
+
 \pagebreak
 
 ###Benchmarking
@@ -799,6 +858,8 @@ S. Bolormaa et al. Detection of chromosome segments of zebu and taurine origin a
 
 C. C. Chang et al. Second-generation PLINK: rising to the challenge of larger and richer datasets. Gigascience. 2015. 4, 7.
 
+Y. Da. Multi-allelic haplotype model based on genetic partition for genomic prediction and variance component estimation using SNP markers. BMC Genet. 2015. 16:144.
+
 B. Devlin and K. Roeder. Genomic control for association studies. Biometrics. 1999. 55:997-1004.
 
 J. Listgarten et al. Improved linear mixed models for genome-wide association studies. Nat. Methods. 2012. 9:525-526.
@@ -833,7 +894,47 @@ J. Yang et al. Advantages and pitfalls in the application of mixed-model associa
 
 \pagebreak
 
-###Appendix - Bayesian linear mixed model
+###Appendix 1 - Frequentist linear mixed model
+
+**General formulation**
+
+Consider the model:
+
+$$\mathbf{y} = \mathbf{Xb} + \mathbf{Zu} + \mathbf{Zp} + \mathbf{e}$$
+
+with likelihood:
+
+$$\mathbf{y} \mid \mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_u^2, \sigma_p^2, \sigma_e^2 \sim N(\mathbf{Xb},\mathbf{V})$$
+
+and variance-covariance matrix:
+
+$$\mathbf{V} = \mathbf{ZKZ'}\sigma_{u}^2 + \mathbf{ZZ'}\sigma_{p}^2 + \mathbf{I}\sigma_{e}^2$$
+
+**Likelihood**
+
+The log-likelihood function is defined as:
+
+$$\log[Pr(\mathbf{y} \mid \mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_{u}^2, \sigma_{p}^2, \sigma_{e}^2)] = -\frac{1}{2}\Bigg[n\log(2\pi) + \log|\mathbf{V}| + (\mathbf{y}-\mathbf{Xb})'\mathbf{V}^{-1}(\mathbf{y}-\mathbf{Xb})\Bigg]$$
+
+It is useful to define:
+
+$$\mathbf{V} = \mathbf{UDU}'$$
+$$\mathbf{V}^{-1} = \mathbf{UD}^{-1}\mathbf{U}'$$
+$$\mathbf{U} = \text{eigvec}(\mathbf{V}) = \text{eigvec}(\mathbf{ZKZ'} + \mathbf{ZZ}' + \mathbf{I})$$
+$$\mathbf{D} = \text{diag}(\mathbf{d})$$
+$$\mathbf{d} = \text{eigval}(\mathbf{V}) = \text{eigval}(\mathbf{ZKZ'})\sigma_{u}^2 + \text{eigval}(\mathbf{ZZ}')\sigma_{p}^2 + \text{eigval}(\mathbf{I})\sigma_{e}^2$$
+$$= \mathbf{a}\sigma_{u}^2 + \mathbf{b}\sigma_{p}^2 + \mathbf{1}\sigma_{e}^2$$
+$$|\mathbf{V}| = \prod_{i=1}^{n} d_i$$
+
+And re-write the log-likelihood as:
+
+$$\log[Pr(\mathbf{y} \mid \mathbf{b}, \mathbf{u}, \mathbf{p}, \sigma_{u}^2, \sigma_{p}^2, \sigma_{e}^2)] \propto -\frac{1}{2}\Bigg[\sum_{i=1}^{n}\log(d_i) + \sum_{i=1}^{n} \frac{q_i^{2}}{d_i}\Bigg]$$
+
+where $\mathbf{q} = \mathbf{U}'(\mathbf{y} - \mathbf{Xb})$. With this formulation, we avoid expensive matrix inversions by computing $\mathbf{U}$, $\mathbf{a}$ and $\mathbf{b}$ only once. The negative log-likelihood is minimized using the L-BFGS-B method implemented in the *optim()* function in the **stats** package. Estimates of variance components from the minimization procedure are then used in Henderson's mixed model equations to find BLUE and BLUP solutions for fixed and random effects.
+
+\pagebreak
+
+###Appendix 2 - Bayesian linear mixed model
 
 **General formulation**
 
@@ -893,6 +994,7 @@ $$Pr(\sigma_u^2) = \frac{(S_u^2\nu_u/2)^{(\nu_u/2)}}{\Gamma(\nu_u/2)} (\sigma_u^
 $$Pr(\sigma_e^2) = \frac{(S_e^2\nu_e/2)^{(\nu_e/2)}}{\Gamma(\nu_e/2)} (\sigma_e^2)^{-(\nu_e+2)/2} \text{exp}\Bigg\{-\frac{\nu_e S_e^2}{2\sigma_e^2}\Bigg\}$$
 
 
+
 **Full and conditional posterior distributions**
 
 Here we simply present the posterior distributions, which are derived in greater detail later.
@@ -908,6 +1010,7 @@ $$Pr(\sigma_u^2 \mid \text{ELSE}) \propto \chi^{-2}\Bigg(m + \nu_u,\frac{\sum_{k
 $$Pr(\sigma_e^2 \mid \text{ELSE}) \propto \chi^{-2}\Bigg(n + \nu_u,\frac{\sum_{i=1}^{n} (y_i - \eta_i)^2 + \nu_eS_e^2}{n + \nu_e}\Bigg)$$
 
 where $\eta_{ij}$ is simply $\eta_i$ computed based on all effects except $b_j$, and $\eta_{ik}$ is simply $\eta_i$ computed based on all effects except $u_k$. As the expected value of a scaled inverse chi-squared distribution is $E[X] = \frac{\nu S^2}{\nu - 2}$, we define $S_u^2 = \frac{\sigma_u^2(\nu_u - 2)}{\nu_u}$ for an arbitrarily value of $\nu_u$. Likewise, $S_e^2 = \frac{\sigma_e^2(\nu_e - 2)}{\nu_e}$ for an arbitrarily value of $\nu_e$.
+
 
 **Gibbs sampler**
 
@@ -925,36 +1028,31 @@ For each parameter, the algorithm works as follows:
 
 An initial guess for the variance components can be given by the user through the heritability argument. Starting guesses for fixed effects are taken from ordinary least squares estimates, whereas all random effects start with value zero. At every iteration, parameters are sampled in the following order: liabilities, thresholds, fixed effects, random effects and variance components. During burn-in, samples are not added to the cumulative posterior estimates and the iteration number is not incremented. Similarly, samples within thinning intervals are not added to the cumulative posterior estimates.
 
-**Model with permanent environmental effects, correlated random effects and heteroskedastic residuals**
 
-The conditional posterior distribution of permanent environmental effects is identical to the uncorrelated effects discussed in this appendix. We can also incorporate covariance of random effects and heteroskedastic residuals into the model without effectively changing the full and conditional posterior distributions. The targeted model assumes:
+**Model with permanent environmental effects and correlated random effects**
+
+The conditional posterior distribution of permanent environmental effects is identical to the uncorrelated effects discussed in this appendix. We can also incorporate covariance of random effects into the model without effectively changing the full and conditional posterior distributions. The targeted model assumes:
 
 $$\mathbf{y} = \mathbf{Xb} + \mathbf{Zu} + \mathbf{Zp} + \mathbf{e}$$
 $$\mathbf{u} \sim N(0,\mathbf{K}\sigma_u^2)$$
 $$\mathbf{p} \sim N(0,\mathbf{I}\sigma_p^2)$$
 $$\mathbf{e} \sim N(0,\mathbf{W}\sigma_e^2)$$
-$$\mathbf{W} = \text{diag}(w_i)$$
 
 If we define:
 
 $$\mathbf{K} = \mathbf{LL}'$$
-$$\mathbf{W}^{-1} = \mathbf{W}^{-1/2}\mathbf{W}^{-1/2}$$
-$$\mathbf{W}^{-1/2} = \text{diag}\Big(1/\sqrt{w_i}\Big)$$
-$$\mathbf{y}^* = \mathbf{W}^{-1/2}\mathbf{y}$$
-$$\mathbf{X}^* = \mathbf{W}^{-1/2}\mathbf{X}$$
-$$\mathbf{Z}^* = \mathbf{W}^{-1/2}\mathbf{Z}$$
+$$\mathbf{Z}^* = \mathbf{ZL}$$
 $$\mathbf{u}^* = \mathbf{L}^{-1}\mathbf{u}$$
-$$\mathbf{e}^* = \mathbf{W}^{-1/2}\mathbf{e}$$
 
 then we can fit the equivalent model
 
-$$\mathbf{y}^* = \mathbf{X}^*\mathbf{b} + \mathbf{Z}^*\mathbf{u}^* + \mathbf{Z}^*\mathbf{p} + \mathbf{e}^*$$
+$$\mathbf{y} = \mathbf{X}\mathbf{b} + \mathbf{Z}^*\mathbf{u}^* + \mathbf{Z}\mathbf{p} + \mathbf{e}$$
 
 which assumes
 $$\mathbf{u}^* \sim N(0,\mathbf{I}\sigma_u^2)$$
-$$\mathbf{e}^* \sim N(0,\mathbf{I}\sigma_e^2)$$
 
-Once the model is fitted, we can solve $\mathbf{\hat{u}} = \mathbf{L\mathbf{\hat{u}}^*}$ and $\mathbf{\hat{e}} = \mathbf{W}^{1/2}\mathbf{\hat{e}}^*$.
+Once the model is fitted, we can solve for $\mathbf{\hat{u}} = \mathbf{L\mathbf{\hat{u}}^*}$.
+
 
 **Fitting categorical data**
 
@@ -963,6 +1061,7 @@ Let the response variable be an ordered categorical variable such that $\mathbf{
 $$y_i = k \text{,   if  } \gamma_{k} \leq z_i \leq \gamma_{k+1}$$
 
 We assume $\gamma_{1} = -\infty$ and $\gamma_{K+1} = \infty$. At each Monte Carlo simulation, $z_i$ is sampled from a normal distribution with mean $\eta_i$ and variance $1$, truncated at $\gamma_{k}$ and $\gamma_{k+1}$. Notice that, in the way we have defined the likelihood of the data, this is equivalent to setting the residual variance to one. Then, the sampling algorithm continues as $z_i$ was the actual response variable.
+
 
 **Derivation for the conditional posterior of fixed effects**
 
@@ -1024,6 +1123,7 @@ $a_j = ({\mathbf{x}_j}'\mathbf{x}_j)^{-1}{\mathbf{x}_j}'\mathbf{y}_j = \frac{\su
 
 $v_j^2 = ({\mathbf{x}_j}'\mathbf{x}_j)^{-1}\sigma_e^2 = \frac{\sigma_e^2}{\sum_{i=1}^{n} x_{ij}^2}$
 
+
 **Derivation for the conditional posterior of random effects**
 
 The rationale here is similar to that from the fixed effects. We marginalize $u_k$ from the likelihood function by computing $\eta_i$ based on all effects except the targeted effect $u_k$. This is equivalent to computing:
@@ -1056,6 +1156,7 @@ $a_k = ({\mathbf{z}_k}'\mathbf{z}_k + \frac{\sigma_e^2}{\sigma_u^2})^{-1}{\mathb
 
 $v_k^2 = ({\mathbf{z}_j}'\mathbf{z}_j + \frac{\sigma_e^2}{\sigma_u^2})^{-1}\sigma_e^2 = \frac{\sigma_e^2}{\Big(\sum_{i=1}^{n} z_{ik}^2 \Big) + \frac{\sigma_e^2}{\sigma_u^2}}$
 
+
 **Derivation for the conditional posterior of variance of random effects**
 
 The marginal posterior distribution for the variance of random effects is:
@@ -1074,6 +1175,7 @@ Which is proportional to:
 
 $\chi^{-2}(d_u,s_u^2)$
 
+
 **Derivation for the conditional posterior of residual variance**
 
 The marginal posterior distribution for the residual variance is:
@@ -1091,5 +1193,37 @@ $p(\sigma_e^2 \mid \text{ELSE}) \propto (\sigma_e^2)^{-(d_e+2)/2} \text{exp} \Bi
 Which is proportional to:
 
 $\chi^{-2}(d_e,s_e^2)$
+
+
+\pagebreak
+
+###Appendix 3 - Model with heteroskedastic residuals
+
+We can incorporate heteroskedastic residuals into the model without effectively changing the fitting algorithms. The targeted model assumes:
+
+$$\mathbf{y} = \mathbf{Xb} + \mathbf{Zu} + \mathbf{Zp} + \mathbf{e}$$
+$$\mathbf{u} \sim N(0,\mathbf{K}\sigma_u^2)$$
+$$\mathbf{p} \sim N(0,\mathbf{I}\sigma_p^2)$$
+$$\mathbf{e} \sim N(0,\mathbf{W}\sigma_e^2)$$
+$$\mathbf{W} = \text{diag}(w_i)$$
+
+If we define:
+
+$$\mathbf{W}^{-1} = \mathbf{W}^{-1/2}\mathbf{W}^{-1/2}$$
+$$\mathbf{W}^{-1/2} = \text{diag}\Big(1/\sqrt{w_i}\Big)$$
+$$\mathbf{y}^* = \mathbf{W}^{-1/2}\mathbf{y}$$
+$$\mathbf{X}^* = \mathbf{W}^{-1/2}\mathbf{X}$$
+$$\mathbf{Z}^* = \mathbf{W}^{-1/2}\mathbf{Z}$$
+$$\mathbf{e}^* = \mathbf{W}^{-1/2}\mathbf{e}$$
+
+then we can fit the equivalent model
+
+$$\mathbf{y}^* = \mathbf{X}^*\mathbf{b} + \mathbf{Z}^*\mathbf{u} + \mathbf{Z}^*\mathbf{p} + \mathbf{e}^*$$
+
+which assumes
+$$\mathbf{e}^* \sim N(0,\mathbf{I}\sigma_e^2)$$
+
+Once the model is fitted, we can solve for $\mathbf{\hat{e}} = \mathbf{W}^{1/2}\mathbf{\hat{e}}^*$.
+
 
 

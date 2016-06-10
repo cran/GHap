@@ -8,7 +8,7 @@ Quantitative trait simulation using real HapGenotype data
 Simulates phenotypes from a quantitative trait with arbitrary major HapAlleles.
 }
 \usage{
-ghap.simpheno(haplo,K,h2,g2,major=NULL,seed=NULL)
+ghap.simpheno(haplo,K,vary=1,h2,g2,major=NULL,seed=NULL)
 }
 
 \arguments{
@@ -18,11 +18,14 @@ ghap.simpheno(haplo,K,h2,g2,major=NULL,seed=NULL)
   \item{K}{
     Covariance matrix to be used in polygenic effects simulation.
   }
+  \item{vary}{
+   A numeric value specifying the total variance (default = 1).
+  }
   \item{h2}{
    A numeric value specifying the heritability.
   }
   \item{g2}{
-   A numeric value specifying the proportion of genetic variance explained by major HapAlleles.
+   A numeric vector specifying the proportion of genetic variance explained by each major HapAllele. The sum of the proportions must not exceed 1. In cases where the sum is less than 1, polygenic effects are simulated such that the remaining variance is uniformly distributed thourghout the genome.
   }
   \item{major}{
    A numeric vector specifying the indices of the HapAlleles to be considered as major.
@@ -38,7 +41,7 @@ The function returns a list with items:
    A numeric value specifying the heritability.
   }
   \item{g2}{
-   A numeric value specifying the proportion of genetic variance explained by major HapAlleles.
+   A numeric vector specifying the proportion of genetic variance explained by each major HapAllele.
   }
   \item{major}{
    A numeric vector specifying the indices of the HapAlleles to be considered as major.
@@ -56,8 +59,7 @@ The function returns a list with items:
    A numeric value corresponding to the residual variance.
   }
   \item{data}{
-   A data.frame containing columns: phenotype = a numeric vector containing the simulated phenotypes; individual =
-   a character vector containing the IDs of the corresponding phenotypes.
+   A data.frame containing columns: phenotype = a numeric vector containing the simulated phenotypes; individual = a character vector containing the IDs of the corresponding phenotypes.
   }
 
   
@@ -73,8 +75,7 @@ where \eqn{\mathbf{u}} is a vector of breeding values and \eqn{\mathbf{e}} is th
 
 \deqn{\mathbf{u} = \mathbf{H}\mathbf{a} + \mathbf{g}}
 
-where \eqn{\mathbf{a}} is the vector of major HapAllele effects, \eqn{\mathbf{H}} is the centered matrix of major HapGenotypes, and \eqn{\mathbf{g}} is a vector of polygenic effects. Vector \eqn{\mathbf{a}} is sampled from \eqn{N(0,1)}, and the variance due to major HapAlleles is computed as \eqn{\sigma_{major}^2 = VAR(\mathbf{H}\mathbf{a})}. Vector \eqn{\mathbf{g}} is sampled from \eqn{N(0,\mathbf{K}\sigma_{major}^2(1-g^2)/g^2)}. Finally, residual effects are sampled from \eqn{N(0,\sigma_{u}^2(1-h^2)/h^2)}.
-
+where \eqn{\mathbf{a}} is the vector of major HapAllele effects, \eqn{\mathbf{H}} is the centered matrix of major HapGenotypes, and \eqn{\mathbf{g}} is a vector of polygenic effects.
 
 }
 

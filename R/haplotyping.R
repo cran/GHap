@@ -121,8 +121,10 @@ ghap.haplotyping<-function(
     #Compute blocks
     mylines<-unlist(mclapply(FUN = block.iter.FUN,id1[i]:id2[i],mc.cores = ncores))
     #Write batch to files
-    writeLines(text = mylines[1:length(mylines) %% 2 == 1],con=hapalleles.con)
-    writeLines(text = mylines[1:length(mylines) %% 2 == 0],con=hapgenotypes.con)
+    if(is.null(mylines) == F){
+      writeLines(text = mylines[1:length(mylines) %% 2 == 1],con=hapalleles.con)
+      writeLines(text = mylines[1:length(mylines) %% 2 == 0],con=hapgenotypes.con)
+    }
     #Log message
     if(verbose == TRUE){
       nblocks.done <- nblocks.done + (id2[i]-id1[i]) + 1

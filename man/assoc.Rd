@@ -110,20 +110,23 @@ Under the null hypothesis that the regression coefficient is zero \eqn{t_i^2 \si
 
 The user must be aware of two known caveats associated with this approach. First, by pre-adjusting records instead of estimating HapAllele effects based on generalized least squares equations we ignore covariance structure and therefore bias the estimates downwards (Svishcheva et al., 2012). Second, each HapAllele being tested is also included in the kinship matrix, such that the HapAllele is included twice in the model: as fixed and random effect. This problem is known as proximal contamination (Listgarten et al., 2012). In the first case, we can use genomic control to recover p-values to an unbiased scale (Devlin and Roeder, 1999; Amin et al., 2007). However, not much can be done regarding the estimates of the effects. As a general recommendation, if the user is only interested in the p-values, the ghap.assoc analysis should be sufficient. When effect estimates are of interest, the user can include the candidate HapAllele as a fixed effect in the full model in ghap.blmm. For the second case, a leave-one-chromosome-out (LOCO analysis) procedure can mitigate proximal contamination (Yang et al., 2014).
 
-As an alternative to the HapAllele test, the function also offers a HapBlock test. If the argument type is supplied with the option "HapBlock" instead of the default "HapAllele", all \emph{m} HapAlleles within a block are fitted simultaneously:
+If the argument type is supplied with the option "HapBlock" instead of the default "HapAllele", the following HapBlock test is applied: Let HapAlleles \eqn{1}, \eqn{2}, ..., \eqn{m} have frequencies \eqn{p_1}, \eqn{p_2}, ..., \eqn{p_m}. Also, let \eqn{\alpha_{1j}} be the average effect of substituting HapAllele \eqn{1} by HapAllele \eqn{j}, such that there are \eqn{m - 1} independent substitution effects to be estimated. We define as HapAllele \eqn{1} the one presenting the smallest frequency. Under this framework, we can obtain least squares estimates as:
 
-\deqn{\hat{\mathbf{a}} = (\mathbf{H}'\mathbf{H})^{-1}\mathbf{H}'\mathbf{y}_{adj}}
+\deqn{\hat{\mathbf{\alpha}} = (\mathbf{M}'\mathbf{M})^{-1}\mathbf{M}'\mathbf{y}_{adj}}
 
-where \eqn{\mathbf{H}} is the \emph{n} x \emph{m} sub-HapGenotypes matrix for the HapAlleles within the block. Then, given the explained (\eqn{ESS}) and the residual (\eqn{RSS}) sum of squares, an F test is computed instead of the chi-squared test:
+where \eqn{\mathbf{M}} is a \eqn{n} x \eqn{m - 1} sub-HapGenotypes matrix for the HapAlleles within the block. Each
+entry \eqn{m_{ij}} of this matrix take values \eqn{2p_j}, \eqn{-(1-2p_j)} and \eqn{-2(1-p_j)} for HapGenotypes \eqn{0}, \eqn{1} and \eqn{2}, respectively. This parameterization follows Da (2015).
+
+Then, given the explained (\eqn{ESS}) and the residual (\eqn{RSS}) sum of squares, an F test is computed instead of the chi-squared test:
 
 \deqn{F = \frac{ESS/\nu_1}{RSS/\nu_2}}
-\deqn{ESS = (\mathbf{H}\hat{\mathbf{a}} - \hat{\mu}_y)'(\mathbf{H}\hat{\mathbf{a}} - \hat{\mu}_y)}
-\deqn{RSS = (\mathbf{y}_{adj} - \mathbf{H}\hat{\mathbf{a}})'(\mathbf{y}_{adj} - \mathbf{H}\hat{\mathbf{a}})}
+\deqn{ESS = (\mathbf{M}\hat{\mathbf{\alpha}} - \hat{\mu}_y)'(\mathbf{M}\hat{\mathbf{\alpha}} - \hat{\mu}_y)}
+\deqn{RSS = (\mathbf{y}_{adj} - \mathbf{M}\hat{\mathbf{\alpha}})'(\mathbf{y}_{adj} - \mathbf{M}\hat{\mathbf{\alpha}})}
 \deqn{\hat{\mu}_y = \frac{1}{N} \sum_{i=1}^{n} y_i}
-\deqn{\nu_1 = m}
-\deqn{\nu_2 = n - m}
+\deqn{\nu_1 = m - 1}
+\deqn{\nu_2 = n - m - 1}
 
-Under the null hypothesis that the variance due to the HapBlock is zero \eqn{F \sim F(\nu_1,\nu_2)}.
+Under the null hypothesis \eqn{VAR(\mathbf{M}\alpha) = 0} (i.e, variance due to the HapBlock is zero) \eqn{F \sim F(\nu_1,\nu_2)}.
 
 }
 
@@ -132,7 +135,9 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 }
 
 \references{
-N. Amin et al. A Genomic Background Based Method for Association Analysis in Related Individuals. PLoS ONE. 2007. 2:e1274. 
+N. Amin et al. A Genomic Background Based Method for Association Analysis in Related Individuals. PLoS ONE. 2007. 2:e1274.
+
+Y. Da. Multi-allelic haplotype model based on genetic partition for genomic prediction and variance component estimation using SNP markers. BMC Genet. 2015. 16:144.
 
 B. Devlin and K. Roeder. Genomic control for association studies. Biometrics. 1999. 55:997-1004.
 
@@ -177,7 +182,8 @@ J. Yang et al. Advantages and pitfalls in the application of mixed-model associa
 # sim <- ghap.simpheno(haplo = haplo, K = K, h2 = 0.5, g2 = 0.3, major = 1000,seed=1988)
 # 
 # #Continuous model
-# model <- ghap.blmm(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K)
+# model <- ghap.mme(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K,
+#                   varcomp = c(sim$vare,sim$varu))
 # 
 # ### RUN ###
 # 

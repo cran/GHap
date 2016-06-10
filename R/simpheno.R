@@ -1,6 +1,6 @@
 #Function: ghap.simpheno
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 4 Jun 2016
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Simulate phenotypes
@@ -8,6 +8,7 @@
 ghap.simpheno<-function(
   haplo,
   K,
+  vary=1,
   h2,
   g2,
   major=NULL,
@@ -18,7 +19,7 @@ ghap.simpheno<-function(
   if(class(haplo) != "GHap.haplo"){
     stop("Argument haplo must be a GHap.haplo object.")
   }
-
+  
   #Check if kinship matrix is symmetrical
   if(identical(colnames(K),rownames(K)) == FALSE){
     stop("Names in rows and columns must be identical.")
@@ -33,37 +34,46 @@ ghap.simpheno<-function(
       ids[i] <- which(haplo$id == rownames(K)[i])
     }
   }
-
+  
   
   # Simulate major haplotypes
+  varu <- h2*vary
   if(is.null(major) == FALSE){
-    if(g2 < 0 | g2 > 1){
+    cond <- which(g2 < 0 | g2 > 1)
+    if(length(cond) > 0){
       stop("Argument g2 must be between zero and one.")
+    }
+    if(length(g2) != length(major)){
+      stop("Vectors g2 and major must have equal length.")
+    }
+    if(sum(g2) > 1){
+      stop("The sum of vector g2 must not exceed 1.")
     }
     X <- as.matrix(haplo$genotypes[major,ids])
     if(length(major) > 1){
       X <- t(X)
+      varX <- apply(X = X, MARGIN = 2, FUN = var)
       X <- scale(X, center = TRUE, scale = FALSE)
     }else{
+      varX <- apply(X = X, MARGIN = 2, FUN = var)
       X <- scale(X, center = TRUE, scale = FALSE)
     }
     if(is.null(seed) == FALSE){
       set.seed(seed)
     }
-    b <- rnorm(length(major),mean=0,sd=1)
+    b <- sqrt(g2*varu/varX)
     Xb <-  X%*%b
-    varg <- var(Xb)*(1-g2)/g2
   }else{
     b <- NA
     Xb <- 0
-    varg <- 1
+    g2 <- 0
   }
   
   # Simulate uncorrelated random effects
   if(is.null(seed) == FALSE){
     set.seed(seed)
   }
-  g <- rnorm(haplo$nsamples.in, mean=0, sd=sqrt(varg))
+  g <- rnorm(haplo$nsamples.in, mean=0, sd=sqrt(varu - sum(g2*varu)))
   
   # Cholesky decomposition of relationship matrix
   svdK <- svd(K)
@@ -75,7 +85,6 @@ ghap.simpheno<-function(
   
   # Simulate breeding value
   u <-  Xb + g
-  varu <- var(u)
   
   # Simulate residuals
   vare <- varu*((1-h2)/h2)
@@ -95,8 +104,8 @@ ghap.simpheno<-function(
   sim$major.effect <- b
   sim$u <- as.vector(u)
   names(sim$u) <- colnames(K)
-  sim$varu <- as.vector(varu)
-  sim$vare <- as.vector(vare)
+  sim$varu <- varu
+  sim$vare <- vare
   sim$data <- data.frame(y,colnames(K))
   colnames(sim$data) <- c("phenotype","individual")
   return(sim)

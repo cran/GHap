@@ -38,23 +38,17 @@ ghap.kinship<-function(
   }
   
   #Generate batch index
-  id1<-seq(1,haplo$nalleles,by=batchsize)
-  id2<-(id1+batchsize)-1
-  id1<-id1[id2<=haplo$nalleles]
-  id2<-id2[id2<=haplo$nalleles]
-  id1 <- c(id1,id2[length(id2)]+1)
-  id2 <- c(id2,haplo$nalleles)
-  if(id1[length(id1)] > haplo$nalleles){
-    id1 <- id1[-length(id1)]; id2 <- id2[-length(id2)]
-  }
+  activealleles <- which(haplo$allele.in)
+  nbatches <- round(haplo$nalleles.in/(batchsize),digits=0) + 1
+  mybatch <- paste("B",1:nbatches,sep="")
+  batch <- rep(mybatch,each=batchsize)
+  batch <- batch[1:haplo$nalleles.in]
+  mybatch <- unique(batch)
+  nbatches <- length(mybatch)
   
   #Log message
   if(verbose == TRUE){
-    cat("Processing ", haplo$nalleles, " haplotype alleles in:\n", sep="")
-    batch <- table((id2-id1)+1)
-    for(i in 1:length(batch)){
-      cat(batch[i]," batches of ",names(batch[i]),"\n",sep="")
-    }
+    cat("Processing ", haplo$nalleles.in, " HapAlleles in ", nbatches, " batches.\n", sep="")
     cat("Inactive alleles will be ignored.\n")
   }
   
@@ -63,31 +57,31 @@ ghap.kinship<-function(
   K <- matrix(data = 0, nrow = haplo$nsamples.in, ncol = haplo$nsamples.in)
   
   #Kinship iterate function
-  activealleles <- which(haplo$allele.in)
   kinship.FUN<-function(i){
-    slice <- id1[i]:id2[i]
-    slice <- slice[slice %in% activealleles]
+    slice <- activealleles[batch == mybatch[i]]
     Ztmp <- haplo$genotypes[slice,haplo$id.in]
     Ztmp.mean <- apply(X = Ztmp,MARGIN = 1,FUN = mean)
-    #Ztmp.sd <- apply(X = Ztmp,MARGIN = 1,FUN = sd)
-    #Ztmp <- (Ztmp - Ztmp.mean)/Ztmp.sd
     Ztmp <- (Ztmp - Ztmp.mean)
-    K <- K + t(Ztmp)%*%(weights[slice]*Ztmp)
+    K <- K + crossprod(Ztmp,weights[batch == mybatch[i]]*Ztmp)
     return(K)
   }
   
   #Loop by batch
-  for(i in 1:length(id1)){
+  sumalleles <- 0
+  for(i in 1:nbatches){
     K <- kinship.FUN(i)
     if(verbose == TRUE){
-      cat(id2[i], "haplotype alleles processed.\r")
+      sumalleles <- sumalleles + length(which(batch == mybatch[i]))
+      cat(sumalleles, "HapAlleles processed.\r")
     }
   }
   
+  
   #Scale kinship matrix
   #K <- K/haplo$nalleles.in
-  varfun <- function(j) return(var(haplo$genotypes[j,]))
-  q <- sum(unlist(mclapply(X=which(haplo$allele.in),FUN = varfun)))
+  varfun <- function(j) return(var(haplo$genotypes[j,haplo$id.in]))
+  q <- unlist(mclapply(X=activealleles,FUN = varfun))
+  q <- sum(q*weights)
   K <- K/q
   colnames(K) <- haplo$id[haplo$id.in]
   rownames(K) <- colnames(K)

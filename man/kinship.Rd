@@ -39,11 +39,11 @@ The function returns a \emph{n} x \emph{n} matrix of HapAllele-based kinships, w
 
 \details{
 
-Briefly, let \eqn{\mathbf{H}} be the centered \emph{n} x \emph{m} matrix of HapGenotypes, where \emph{n} is the number of individuals and \emph{m} is the number of HapAlleles. Also, we define \eqn{q} as the inverse sum of variances in the columns of \eqn{\mathbf{H}}. The HapAllele covariance among individuals is computed as:
+Briefly, let \eqn{\mathbf{H}} be the centered \emph{n} x \emph{m} matrix of HapGenotypes, where \emph{n} is the number of individuals and \emph{m} is the number of HapAlleles. The HapAllele covariance among individuals is computed as:
 
 \deqn{\mathbf{K} = q\mathbf{HDH}'}
 
-where \eqn{\mathbf{D} = diag(d_i)} and \eqn{d_i} is the weight of HapAllele \emph{i} (default \eqn{d_i = 1}). Notice that this is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008).
+where \eqn{\mathbf{D} = diag(d_i)}, \eqn{d_i} is the weight of HapAllele \emph{i} (default \eqn{d_i = 1}), and \eqn{q} is the inverse weighted sum of variances in the columns of \eqn{\mathbf{H}}. Notice that this is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008).
 
 }
 

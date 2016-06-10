@@ -61,6 +61,12 @@ The function returns a dataframe with columns:
   \item{pVAR}{
   Proportion of variance explained by the haplotype allele.
  }
+ \item{CENTER}{
+  Average genotype (meaningful only for predictions with \code{\link{ghap.profile}}).
+ }
+ \item{SCALE}{
+  A constant set to 1 (meaningful only for predictions with \code{\link{ghap.profile}}).
+ }
  \item{P}{
   P-value for the permutation test. This column is suppressed if nperm < 1.
  }
@@ -71,9 +77,9 @@ The function returns a dataframe with columns:
 
 The function uses the equation:
 
-\deqn{\mathbf{\hat{a}} = q\mathbf{H}'\mathbf{K}^{-1}\mathbf{\hat{u}}}
+\deqn{\mathbf{\hat{a}} = q\mathbf{DH}'\mathbf{K}^{-1}\mathbf{\hat{u}}}
 
-where \eqn{\mathbf{H}} is the \emph{n} x \emph{m} centered matrix of HapGenotypes observed for \emph{n} individuals and \emph{m} HapAlleles, \emph{q} is the inverse sum of the variances in the columns of \eqn{\mathbf{H}}, \eqn{\mathbf{K}} is the haplotype-based kinship matrix and \eqn{\hat{u}} is the vector of estimated breeding values. The permutation procedure consists in randomizing the vector \eqn{\hat{\mathbf{u}}} and computing the null statistic \eqn{max(\mathbf{\hat{a}})}. The permutation p-value is computed as the number of times the HapAllele effect was smaller than the null statistic.
+where \eqn{\mathbf{H}} is the \emph{n} x \emph{m} centered matrix of HapGenotypes observed for \emph{n} individuals and \emph{m} HapAlleles, \eqn{\mathbf{D} = diag(d_i)}, \eqn{d_i} is the weight of HapAllele \emph{i} (default \eqn{d_i = 1}), \eqn{q} is the inverse weighted sum of variances in the columns of \eqn{\mathbf{H}}, \eqn{\mathbf{K}} is the haplotype-based kinship matrix and \eqn{\hat{u}} is the vector of estimated breeding values. The permutation procedure consists in randomizing the vector \eqn{\hat{\mathbf{u}}} and computing the null statistic \eqn{max(\mathbf{\hat{a}})}. The permutation p-value is computed as the number of times the HapAllele effect was smaller than the null statistic.
 
 }
 
@@ -118,20 +124,20 @@ I. Stranden and D.J. Garrick. Technical note: derivation of equivalent computing
 # # One major haplotype accounting for 30\% of the genetic variance
 # sim <- ghap.simpheno(haplo = haplo, K = K, h2 = 0.5, g2 = 0.3, major = 1000,seed=1988)
 # 
-# #Continuous model
+# # Continuous model
 # model <- ghap.blmm(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K)
 # 
 # ### RUN ###
 # 
 # 
-# #BLUP solutions for HapAllele effects
+# # BLUP solutions for HapAllele effects
 # blup <- ghap.blup(blmm = model, haplo = haplo, ncores=2)
 # blup$POS <- (blup$BP1+blup$BP2)/2e+6
 # plot(blup$POS,100*blup$pVAR, xlab="Chromosome 2 position (in Mb)",
 #      ylab="Haplotype variance explained (\%)", pch=20, col="#471FAA99")
 # abline(v=(haplo$bp1[1000]+haplo$bp2[1000])/2e+6,lty=3)
 # 
-# #Permutation test
+# # Permutation test
 # blup <- ghap.blup(blmm = model, haplo = haplo, ncores=2, nperm = 1000)
 # blup$POS <- (blup$BP1+blup$BP2)/2e+6
 # plot(blup$POS,-log10(blup$P), xlab="Chromosome 2 position (in Mb)",
@@ -139,11 +145,12 @@ I. Stranden and D.J. Garrick. Technical note: derivation of equivalent computing
 # abline(v=(haplo$bp1[1000]+haplo$bp2[1000])/2e+6,lty=3)
 # abline(h=-log10(0.05))
 # 
-# #Re-weighted solutions
+# # Re-weighted solutions
 # w <- nrow(blup)*blup$pVAR
 # K <- ghap.kinship(haplo, weights = w, batchsize = 100)
-# model <- ghap.blmm(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K)
-# blup <- ghap.blup(blmm = model, haplo = haplo, weights = w, ncores=2)
+# model2 <- ghap.mme(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K, 
+#                    varcomp=c(model$vare,model$varu))
+# blup <- ghap.blup(blmm = model2, haplo = haplo, weights = w, ncores=2)
 # blup$POS <- (blup$BP1+blup$BP2)/2e+6
 # plot(blup$POS,100*blup$pVAR, xlab="Chromosome 2 position (in Mb)",
 #      ylab="Haplotype variance explained (\%)", pch=20, col="#471FAA99")

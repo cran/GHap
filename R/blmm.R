@@ -37,6 +37,8 @@ ghap.blmm<-function(
   
   #Build design matrices
   if (ordinal == TRUE) {
+    colnames(data)[colnames(data) == random] <- "MyRanColName"
+    random <- "MyRanColName"
     mf <- model.frame(fixed, data = data)
     y <- model.response(mf)
     y <- factor(y, ordered = TRUE)
@@ -56,9 +58,12 @@ ghap.blmm<-function(
       stop("Residual weights can only be defined for continuous responses.")
     }else{
       weights <- rep(1,times=length(y))
+      w <- weights
     }
   }
   if (ordinal == FALSE) {
+    colnames(data)[colnames(data) == random] <- "MyRanColName"
+    random <- "MyRanColName"
     mf <- model.frame(fixed, data = data)
     y <- model.response(mf)
     y.levels <- NULL
@@ -310,12 +315,6 @@ ghap.blmm<-function(
         results$varp <- sum.varp/sum.sim
       }
       results$vare <- sum.vare/sum.sim
-      if(env.eff==TRUE){
-        results$h2 <- results$varu/(results$varu+results$vare+results$varp)
-        results$H2 <- (results$varu+results$varp)/(results$varu+results$vare+results$varp)
-      }else{
-        results$h2 <- results$varu/(results$varu+results$vare)
-      }
       results$dev <- sum.dev/sum.sim
     }else{
       results$sum.sim <- sum.sim
@@ -329,12 +328,6 @@ ghap.blmm<-function(
         results$varp <- sum.varp/sum.sim
       }
       results$vare <- sum.vare/sum.sim
-      if(env.eff==TRUE){
-        results$h2 <- results$varu/(results$varu+results$vare+results$varp)
-        results$H2 <- (results$varu+results$varp)/(results$varu+results$vare+results$varp)
-      }else{
-        results$h2 <- results$varu/(results$varu+results$vare)
-      }
       results$dev <- sum.dev/sum.sim
     }
     
@@ -360,12 +353,14 @@ ghap.blmm<-function(
       u <- tmp[[1]]$u
       varu <- tmp[[1]]$varu
       vare <- tmp[[1]]$vare
-      h2 <- tmp[[1]]$h2
       sum.sim <- tmp[[1]]$sum.sim
       if(env.eff==TRUE){
         p <- tmp[[1]]$p
         varp <- tmp[[1]]$varp
-        H2 <- tmp[[1]]$H2
+        h2 <- varu/(varu+varp+vare)
+        H2 <- (varu+varp)/(varu+varp+vare)
+      }else{
+        h2 <- varu/(varu+vare)
       }
       dev <- tmp[[1]]$dev
       for(i in 2:nchain){
@@ -375,12 +370,14 @@ ghap.blmm<-function(
         u <- rbind(u,tmp[[i]]$u)
         varu <- rbind(varu,tmp[[i]]$varu)
         vare <- rbind(vare,tmp[[i]]$vare)
-        h2 <- rbind(h2,tmp[[i]]$h2)
         sum.sim <- rbind(sum.sim,tmp[[i]]$sum.sim)
         if(env.eff==TRUE){
           p <- rbind(p,tmp[[i]]$p)
           varp <- rbind(varp,tmp[[i]]$varp)
-          H2 <- rbind(H2,tmp[[i]]$H2)
+          h2 <- rbind(h2,varu/(varu+varp+vare))
+          H2 <- rbind(H2,(varu+varp)/(varu+varp+vare))
+        }else{
+          h2 <- rbind(h2,varu/(varu+vare))
         }
         dev <- rbind(dev,tmp[[i]]$dev)
       }
@@ -401,11 +398,13 @@ ghap.blmm<-function(
         results$varp <- apply(varp,MARING=2,mean)
       }
       results$vare <- apply(vare,MARGIN=2,mean)
-      results$h2 <- apply(h2,MARGIN=2,mean)
       if(env.eff==TRUE){
-        results$H2 <- apply(H2,MARGIN=2,mean)
+        results$h2 <- results$varu/(results$varu+results$varp+results$vare)
+        results$H2 <- (results$varu+results$varp)/(results$varu+results$varp+results$vare)
+      }else{
+        results$h2 <- results$varu/(results$varu+results$vare)
       }
-      results$k <- as.vector(svdK$v%*%diag(1/svdK$d)%*%t(svdK$u)%*%results$u); names(results$k) <- colnames(K)
+      results$k <- as.vector((svdK$v%*%diag(1/svdK$d)%*%t(svdK$u))%*%results$u); names(results$k) <- colnames(K)
       results$y <- y.obs; names(results$y) <- data[,random]
       results$weights <- weights; names(results$weights) <- data[,random]
       if(env.eff==TRUE){
@@ -434,12 +433,14 @@ ghap.blmm<-function(
       u <- tmp[[1]]$u
       varu <- tmp[[1]]$varu
       vare <- tmp[[1]]$vare
-      h2 <- tmp[[1]]$h2
       sum.sim <- tmp[[1]]$sum.sim
       if(env.eff==TRUE){
         p <- tmp[[1]]$p
         varp <- tmp[[1]]$varp
-        H2 <- tmp[[1]]$H2
+        h2 <- varu/(varu+varp+vare)
+        H2 <- (varp+varu)/(varp+varu+vare)
+      }else{
+        h2 <- varu/(varu+vare)
       }
       dev <- tmp[[1]]$dev
       for(i in 2:nchain){
@@ -447,12 +448,14 @@ ghap.blmm<-function(
         u <- rbind(u,tmp[[i]]$u)
         varu <- rbind(varu,tmp[[i]]$varu)
         vare <- rbind(vare,tmp[[i]]$vare)
-        h2 <- rbind(h2,tmp[[i]]$h2)
         sum.sim <- rbind(sum.sim,tmp[[i]]$sum.sim)
         if(env.eff==TRUE){
           p <- rbind(p,tmp[[i]]$p)
           varp <- rbind(varp,tmp[[i]]$varp)
-          H2 <- rbind(H2,tmp[[i]]$H2)
+          h2 <- rbind(h2,varu/(varu+varp+vare))
+          H2 <- rbind(H2,(varp+varu)/(varu+varp+vare))
+        }else{
+          h2 <- rbind(h2,varu/(varu+vare)) 
         }
         dev <- rbind(dev,tmp[[i]]$dev)
       }
@@ -471,11 +474,13 @@ ghap.blmm<-function(
         results$varp <- apply(varp,MARGIN=2,mean)
       }
       results$vare <- apply(vare,MARGIN=2,mean)
-      results$h2 <- apply(h2,MARGIN=2,mean)
       if(env.eff==TRUE){
-        results$H2 <- apply(H2,MARGIN=2,mean)
+        results$h2 <- results$varu/(results$varu+results$varp+results$vare)
+        results$H2 <- (results$varu+results$varp)/(results$varu+results$varp+results$vare)
+      }else{
+        results$h2 <- results$varu/(results$varu+results$vare)
       }
-      results$k <- as.vector(svdK$v%*%diag(1/svdK$d)%*%t(svdK$u)%*%results$u); names(results$k) <- colnames(K)
+      results$k <- as.vector((svdK$v%*%diag(1/svdK$d)%*%t(svdK$u))%*%results$u); names(results$k) <- colnames(K)
       results$y <- (1/w)*y; names(results$y) <- data[,random]
       results$weights <- weights; names(results$weights) <- data[,random]
       if(env.eff==TRUE){
@@ -531,11 +536,13 @@ ghap.blmm<-function(
         results$varp <- tmp[[1]]$varp
       }
       results$vare <- tmp[[1]]$vare
-      results$h2 <- tmp[[1]]$h2
       if(env.eff==TRUE){
-        results$H2 <- tmp[[1]]$H2
+        results$h2 <- results$varu/(results$varu+results$varp+results$vare)
+        results$H2 <- (results$varu+results$varp)/(results$varu+results$varp+results$vare)
+      }else{
+        results$h2 <- results$varu/(results$varu+results$vare)
       }
-      results$k <- as.vector(svdK$v%*%diag(1/svdK$d)%*%t(svdK$u)%*%results$u); names(results$k) <- colnames(K)
+      results$k <- as.vector((svdK$v%*%diag(1/svdK$d)%*%t(svdK$u))%*%results$u); names(results$k) <- colnames(K)
       results$y <- y.obs; names(results$y) <- data[,random]
       results$weights <- weights; names(results$weights) <- data[,random]
       if(env.eff==TRUE){
@@ -560,11 +567,13 @@ ghap.blmm<-function(
         results$varp <- tmp[[1]]$varp
       }
       results$vare <- tmp[[1]]$vare
-      results$h2 <- tmp[[1]]$h2
       if(env.eff==TRUE){
-        results$H2 <- tmp[[1]]$H2
+        results$h2 <- results$varu/(results$varu+results$varp+results$vare)
+        results$H2 <- (results$varu+results$varp)/(results$varu+results$varp+results$vare)
+      }else{
+        results$h2 <- results$varu/(results$varu+results$vare)
       }
-      results$k <- as.vector(svdK$v%*%diag(1/svdK$d)%*%t(svdK$u)%*%results$u); names(results$k) <- colnames(K)
+      results$k <- as.vector((svdK$v%*%diag(1/svdK$d)%*%t(svdK$u))%*%results$u); names(results$k) <- colnames(K)
       results$y <- (1/w)*y; names(results$y) <- data[,random]
       results$weights <- weights; names(results$weights) <- data[,random]
       if(env.eff==TRUE){

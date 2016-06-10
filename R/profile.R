@@ -41,6 +41,7 @@ ghap.profile <- function(
   #score iterate function
   score.FUN <- function(j){
     x <- haplo$genotypes[haps$IDX,j]
+    x <- (x - haps$CENTER)/haps$SCALE
     return(sum(x*haps$SCORE))
   }
   
