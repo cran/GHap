@@ -1,11 +1,11 @@
 #Function: ghap.pca
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Compute principal components from a kinship matrix
 
-ghap.pca<-function(haplo, K, npc=2){
+ghap.pca<-function(haplo, kinship, npc=2){
   
   #Check if haplo is a GHap.haplo object
   if (class(haplo) != "GHap.haplo") {
@@ -13,34 +13,30 @@ ghap.pca<-function(haplo, K, npc=2){
   }
   
   #Check if kinship matrix is symmetrical
-  if(identical(colnames(K),rownames(K)) == FALSE){
+  if(identical(colnames(kinship),rownames(kinship)) == FALSE){
     stop("Names in rows and columns must be identical.")
   }
   
   #Check if names in the kinship matrix match with the GHap.haplo object
-  if (length(which(colnames(K) %in% haplo$id)) != ncol(K)) {
+  if (length(which(colnames(kinship) %in% haplo$id)) != ncol(kinship)) {
     stop("All ids in the kinship matrix must be present in the GHap.haplo object.")
   }else{
-    ids <- rep(NA, times = ncol(K))
+    ids <- rep(NA, times = ncol(kinship))
     for (i in 1:length(ids)) {
-      ids[i] <- which(haplo$id == colnames(K)[i])
+      ids[i] <- which(haplo$id == colnames(kinship)[i])
     }
     pop <- haplo$pop[ids]
   }
   
-  #Singular value decomposition
-  svdK <- svd(K)
-  
-  #Eigenvalues
-  eigenval <- svdK$d[1:npc]
-  propvar <- eigenval/sum(eigenval)
+  #Eigendecomposition
+  eigK <- eigen(kinship, symmetric = TRUE)
   
   #Output
   results <- NULL
-  results$eigenvec <- data.frame(pop,rownames(K),svdK$u[,1:npc],stringsAsFactors = FALSE)
+  results$eigenvec <- data.frame(pop,rownames(kinship),eigK$vectors[,1:npc],stringsAsFactors = FALSE)
   colnames(results$eigenvec) <- c("POP","ID",paste("PC",1:npc,sep=""))
-  results$eigenval <- eigenval[1:npc]
-  results$propvar <- propvar[1:npc]
+  results$eigenval <- eigK$values[1:npc]
+  results$propvar <- (eigK$values/sum(eigK$values))[1:npc]
   
   #Return output
   return(results)

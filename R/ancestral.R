@@ -1,6 +1,6 @@
 #Function: ghap.ancestral
 #License: GPLv3 or later
-#Modification date: 19 Jen 2015
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya & Marco Milanesi
 #Contact: ytutsunomiya@gmail.com
 #Description: Assign the aplotype to one of the parental population 

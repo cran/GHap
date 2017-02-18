@@ -1,6 +1,6 @@
 #Function: ghap.loadphase
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya & Marco Milanesi
 #Contact: ytutsunomiya@gmail.com, marco.milanesi.mm@gmail.com
 #Description: Load phased genotypes

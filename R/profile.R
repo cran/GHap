@@ -1,6 +1,6 @@
 #Function: ghap.profile
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Compute individual profiles based on haplotype allele scores
@@ -45,8 +45,14 @@ ghap.profile <- function(
     return(sum(x*haps$SCORE))
   }
   
-  #Compute haplotype regression statistics
-  a <- mclapply(FUN=score.FUN,X=which(haplo$id.in),mc.cores = ncores)
+  #Perform scoring
+  ncores <- min(c(detectCores(),ncores))
+  if(Sys.info()["sysname"] == "Windows"){
+    cat("\nParallelization not supported yet under Windows (using a single core).\n")
+    a <- lapply(FUN = score.FUN, X=which(haplo$id.in))
+  }else{
+    a <- mclapply(FUN = score.FUN, X = which(haplo$id.in), mc.cores = ncores)
+  }
   out <- NULL
   out$POP <- haplo$pop[haplo$id.in]
   out$ID <- haplo$id[haplo$id.in]

@@ -47,11 +47,9 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # 
 # ### RUN ###
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Subset data - markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
 
 }

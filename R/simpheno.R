@@ -1,16 +1,18 @@
 #Function: ghap.simpheno
 #License: GPLv3 or later
-#Modification date: 4 Jun 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Simulate phenotypes
 
 ghap.simpheno<-function(
   haplo,
-  K,
-  vary=1,
+  kinship,
   h2,
   g2,
+  r2=0,
+  nrep=1,
+  balanced=TRUE,
   major=NULL,
   seed=NULL
 ){
@@ -21,23 +23,27 @@ ghap.simpheno<-function(
   }
   
   #Check if kinship matrix is symmetrical
-  if(identical(colnames(K),rownames(K)) == FALSE){
+  if(identical(colnames(kinship),rownames(kinship)) == FALSE){
     stop("Names in rows and columns must be identical.")
   }
   
   #Check if names in the kinship matrix match with the GHap.haplo object
-  if (length(which(colnames(K) %in% haplo$id)) != ncol(K)) {
+  if (length(which(colnames(kinship) %in% haplo$id)) != ncol(kinship)) {
     stop("All ids in the kinship matrix must be present in the GHap.haplo object.")
-  }else{
-    ids <- rep(NA, times = nrow(K))
-    for (i in 1:length(ids)) {
-      ids[i] <- which(haplo$id == rownames(K)[i])
-    }
   }
   
+  # Simulate uncorrelated random effects
+  if(is.null(seed) == FALSE){
+    set.seed(seed)
+  }
+  g <- rnorm(ncol(kinship),sd=sqrt(h2 - sum(g2*h2)))
+  
+  # Make random effects correlated by kinship
+  # Now g = polygenic effect (sum of genome-wide haplotype effects) - major effect
+  g <- crossprod(chol(nearPD(kinship)$mat),g)
+  g <- as.vector(g)
   
   # Simulate major haplotypes
-  varu <- h2*vary
   if(is.null(major) == FALSE){
     cond <- which(g2 < 0 | g2 > 1)
     if(length(cond) > 0){
@@ -49,65 +55,97 @@ ghap.simpheno<-function(
     if(sum(g2) > 1){
       stop("The sum of vector g2 must not exceed 1.")
     }
+    ids <- 1:haplo$nsamples
+    names(ids) <- haplo$id
+    ids <- ids[colnames(kinship)]
     X <- as.matrix(haplo$genotypes[major,ids])
     if(length(major) > 1){
-      X <- t(X)
-      varX <- apply(X = X, MARGIN = 2, FUN = var)
-      X <- scale(X, center = TRUE, scale = FALSE)
+      X <- scale(t(X))
+      X <- scale(X)
+      b <- sqrt(g2*h2)
+      Xb <- X%*%b
     }else{
-      varX <- apply(X = X, MARGIN = 2, FUN = var)
-      X <- scale(X, center = TRUE, scale = FALSE)
+      X <- scale(X)
+      b <- sqrt(g2*h2)
+      Xb <- X%*%b
     }
     if(is.null(seed) == FALSE){
       set.seed(seed)
     }
-    b <- sqrt(g2*varu/varX)
-    Xb <-  X%*%b
   }else{
-    b <- NA
     Xb <- 0
-    g2 <- 0
   }
-  
-  # Simulate uncorrelated random effects
-  if(is.null(seed) == FALSE){
-    set.seed(seed)
-  }
-  g <- rnorm(haplo$nsamples.in, mean=0, sd=sqrt(varu - sum(g2*varu)))
-  
-  # Cholesky decomposition of relationship matrix
-  svdK <- svd(K)
-  L <- svdK$u %*% diag(sqrt(svdK$d))
-  
-  # Make random effects correlated by K
-  # Now g = polygenic effect (sum of genome-wide haplotype effects) - major effect
-  g <- as.vector(L%*%g)
   
   # Simulate breeding value
-  u <-  Xb + g
+  u <- Xb + g
+  
+  # Simulate repeatability
+  if(nrep > 1){
+    if(is.null(seed) == FALSE){
+      set.seed(seed)
+    }
+    p <- rnorm(ncol(kinship),sd=sqrt(r2))
+  }
   
   # Simulate residuals
-  vare <- varu*((1-h2)/h2)
   if(is.null(seed) == FALSE){
     set.seed(seed)
   }
-  e <- rnorm(haplo$nsamples.in, 0, sqrt(vare))
+  if(nrep > 1){
+    e <- rnorm(nrep*ncol(kinship), sd=sqrt(1-h2-r2))
+  }else{
+    e <- rnorm(ncol(kinship), sd=sqrt(1-h2))
+  }
   
   # Simulate phenotypes
-  y <- u + e
+  if(nrep > 1){
+    y <- rep(u,each=nrep) + rep(p,each=nrep) + e
+  }else{
+    y <- u + e
+  }
   
-  #Return output
+  #Assemble output
   sim <- NULL
   sim$h2 <- h2
   sim$g2 <- g2
   sim$major <- major
   sim$major.effect <- b
   sim$u <- as.vector(u)
-  names(sim$u) <- colnames(K)
-  sim$varu <- varu
-  sim$vare <- vare
-  sim$data <- data.frame(y,colnames(K))
+  names(sim$u) <- colnames(kinship)
+  if(nrep > 1){
+    sim$p <- as.vector(p)
+    names(sim$p) <- colnames(kinship)
+  }
+  sim$varu <- as.numeric(var(u))
+  sim$vare <- var(e)
+  if(nrep > 1){
+    sim$varp <- var(p)
+  }
+  if(nrep > 1){
+    sim$data <- data.frame(y,rep(colnames(kinship),each=nrep))
+  }else{
+    sim$data <- data.frame(y,colnames(kinship))
+  }
   colnames(sim$data) <- c("phenotype","individual")
+  sim$data$individual <- as.factor(sim$data$individual)
+  
+  #Generate unbalanced data
+  if(balanced == FALSE){
+    x <- rep(FALSE,times=nrow(sim$data))
+    for(i in colnames(kinship)){
+      if(is.null(seed) == FALSE){
+        seed <- seed + 1
+        set.seed(seed)
+      }
+      nrep.samp <- as.integer(runif(n = 1, min = 0, max = nrep))
+      samp <- which(sim$data$individual == i)
+      samp <- sample(samp, size = nrep.samp, replace = F)
+      x[samp] <- TRUE
+    }
+    sim$data <- sim$data[x,]
+  }
+  
+  #Return output
   return(sim)
   
 }

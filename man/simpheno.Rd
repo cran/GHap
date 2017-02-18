@@ -5,30 +5,37 @@
 Quantitative trait simulation using real HapGenotype data
 }
 \description{
-Simulates phenotypes from a quantitative trait with arbitrary major HapAlleles.
+Simulates phenotypes from a quantitative trait with arbitrary major alleles.
 }
 \usage{
-ghap.simpheno(haplo,K,vary=1,h2,g2,major=NULL,seed=NULL)
+ghap.simpheno(haplo, kinship, h2, g2, r2=0, nrep=1,
+              balanced=TRUE, major=NULL, seed=NULL)
 }
 
 \arguments{
   \item{haplo}{
    A GHap.haplo object.
   }
-  \item{K}{
+  \item{kinship}{
     Covariance matrix to be used in polygenic effects simulation.
-  }
-  \item{vary}{
-   A numeric value specifying the total variance (default = 1).
   }
   \item{h2}{
    A numeric value specifying the heritability.
   }
   \item{g2}{
-   A numeric vector specifying the proportion of genetic variance explained by each major HapAllele. The sum of the proportions must not exceed 1. In cases where the sum is less than 1, polygenic effects are simulated such that the remaining variance is uniformly distributed thourghout the genome.
+   A numeric vector specifying the proportion of genetic variance explained by each major allele. The sum of the proportions must not exceed 1. In cases where the sum is less than 1, polygenic effects are simulated such that the remaining variance is uniformly distributed throughout the genome.
+  }
+  \item{r2}{
+   A numeric value specifying the repeatability (default = 0). Only relevant if nrep > 1.
+  }
+  \item{nrep}{
+   A numeric value specifying the number of repeated measures per subject.
+  }
+  \item{balanced}{
+   A logical value specifying whether the output data should be balanced (default = TRUE). If balanced = FALSE, the number of repeated measures per subject will be heterogeneous, following a uniform distribution with minimum zero and maximum nrep. Only relevant if nrep > 1.
   }
   \item{major}{
-   A numeric vector specifying the indices of the HapAlleles to be considered as major.
+   A numeric vector specifying the indices of the alleles to be considered as major.
   }
   \item{seed}{
     A numeric value used to set the random number generation state (default = NULL). This is useful for reproducibility of the results.
@@ -52,8 +59,14 @@ The function returns a list with items:
   \item{u}{
    A numeric vector containing breeding values.
   }
+  \item{p}{
+   A numeric vector containing permanent environmental effects. Suppressed if r2 = NULL and nrep = 1.
+  }
   \item{varu}{
    A numeric value corresponding to the genetic variance.
+  }
+  \item{varp}{
+   A numeric vector corresponding to the variance in permanent environmental effects. Suppressed if nrep = 1.
   }
   \item{vare}{
    A numeric value corresponding to the residual variance.
@@ -69,13 +82,13 @@ The function returns a list with items:
 
 The simulation considers the model:
 
-\deqn{\mathbf{y} = \mathbf{u} + \mathbf{e}}
+\deqn{\mathbf{y} = \mathbf{Zu} + \mathbf{Zp} + \mathbf{e}}
 
-where \eqn{\mathbf{u}} is a vector of breeding values and \eqn{\mathbf{e}} is the vector of residuals. Breeding values are assumed:
+where \eqn{\mathbf{u}} is a vector of breeding values, \eqn{\mathbf{p}} is a vector of permanent environmental effects, \eqn{\mathbf{Z}} is an incidence matrix mapping \eqn{\mathbf{y}} to \eqn{\mathbf{u}} and \eqn{\mathbf{p}}, and \eqn{\mathbf{e}} is the vector of residuals. Breeding values are assumed:
 
 \deqn{\mathbf{u} = \mathbf{H}\mathbf{a} + \mathbf{g}}
 
-where \eqn{\mathbf{a}} is the vector of major HapAllele effects, \eqn{\mathbf{H}} is the centered matrix of major HapGenotypes, and \eqn{\mathbf{g}} is a vector of polygenic effects.
+where \eqn{\mathbf{a}} is the vector of major allele effects, \eqn{\mathbf{H}} is the centered matrix of major allele counts, and \eqn{\mathbf{g}} is a vector of polygenic effects.
 
 }
 
@@ -85,6 +98,7 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 
 \examples{
 
+
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
@@ -93,37 +107,45 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Subset data - markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
 # 
-# # Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-# blocks <- ghap.blockgen(phase, 10, 5, "marker")
-# 
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+#
 # # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks, batchsize = 100, ncores = 2, freq = 0.05, outfile = "example")
-# 
+# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+#
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("example.hapsamples", "example.hapalleles", "example.hapgenotypes")
-# 
-# # Compute kinship matrix
+# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+#
+#
+# ### RUN ###
+#
+# # Subset common haplotypes in Europeans
+# EUR.ids <- haplo$id[haplo$pop \%in\% c("TSI","CEU")]
+# haplo <- ghap.subsethaplo(haplo,EUR.ids,rep(TRUE,times=haplo$nalleles))
+# hapstats <- ghap.hapstats(haplo, ncores = 2)
+# common <- hapstats$TYPE \%in\% c("REGULAR","MAJOR") &
+#  hapstats$FREQ > 0.05 &
+#  hapstats$FREQ < 0.95
+# haplo <- ghap.subsethaplo(haplo,EUR.ids,common)
+#
+# #Compute relationship matrix
 # K <- ghap.kinship(haplo, batchsize = 100)
 # 
-# ### RUN ###
-# 
 # # Quantitative trait with 50\% heritability
-# # One major haplotype accounting for 30\% of the genetic variance
-# sim <- ghap.simpheno(haplo = haplo, K = K, h2 = 0.5, g2 = 0.3, major = 1000,seed=1988)
-# 
-# # Binary trait from the previous example
-# # 0 if observation is below the 70\% percentile
-# # 1 otherwise
-# thr <- quantile(x = sim$data$phenotype, probs = 0.7)
-# sim$data$phenotype2 <- sim$data$phenotype
-# sim$data$phenotype2[sim$data$phenotype < thr] <- 0
-# sim$data$phenotype2[sim$data$phenotype >= thr] <- 1
+# # Unbalanced repeated measurements (0 to 30)
+# # Two major haplotypes accounting for 50\% of the genetic variance
+# myseed <- 123456789
+# set.seed(myseed)
+# major <- sample(which(haplo$allele.in == TRUE),size = 2)
+# g2 <- runif(n = 2, min = 0, max = 1)
+# g2 <- (g2/sum(g2))*0.5
+# sim <- ghap.simpheno(haplo, kinship = K, h2 = 0.5, g2 = g2, nrep = 30,
+#                      balanced = FALSE, major = major, seed = myseed)
+
 
 }

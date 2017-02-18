@@ -8,7 +8,7 @@ Haplotype genotypes
 Generate matrix of HapGenotypes for user-defined blocks.
 }
 \usage{
-ghap.haplotyping(phase, blocks, outfile, freq = 0.05,
+ghap.haplotyping(phase, blocks, outfile, freq = c(0,1), drop.minor = FALSE,
  batchsize = 500, ncores = 1, verbose = TRUE)
 
 }
@@ -24,7 +24,10 @@ ghap.haplotyping(phase, blocks, outfile, freq = 0.05,
    A character value specifying the name for the output files.
   }
   \item{freq}{
-   A numeric value specifying the minimum haplotype allele frequency (default = 0.05).
+   A numeric vector of length 2 specifying the range of haplotype allele frequency to be included in the output. Default is c(0,1), which includes all alleles.
+  }
+  \item{drop.minor}{
+   A logical value specfying whether the minor allele should be excluded from the output (default = FALSE).
   }
   \item{batchsize}{
    A numeric value controlling the number of haplotype blocks to be processed and written to output at a time (default = 500).
@@ -64,19 +67,18 @@ Marco Milanesi <marco.milanesi.mm@gmail.com>
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Subset data - markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
 # 
-# # Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-# blocks <- ghap.blockgen(phase, 10, 5, "marker")
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+#
 # 
 # ### RUN ###
 # 
 # # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks, batchsize = 100, ncores = 2, freq = 0.05, outfile = "example")
+# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
 
 }

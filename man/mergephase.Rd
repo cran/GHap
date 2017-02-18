@@ -5,7 +5,7 @@
   Merging GHap.phase objects
 }
 \description{
-  This function merges two GHap.phase objects.  
+  This function merges two GHap.phase objects, provided they have the same set of markers. 
 }
 \usage{
   ghap.mergephase(phase.1, phase.2, only.active.markers = TRUE,
@@ -51,21 +51,20 @@
 # 
 # ### RUN ###
 # 
-# # Randomly select 3000 markers with maf > 0.02
+# # Select markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # 
 # # Select ASW and CEU individuals
-# ASW.ids <- unique(phase$id[which(phase$pop=="ASW")])
-# CEU.ids <- unique(phase$id[which(phase$pop=="CEU")])
+# ASW.ids <- unique(phase$id[phase$pop=="ASW"])
+# CEU.ids <- unique(phase$id[phase$pop=="CEU"])
 # 
 # # Subset data 
-# phase.ASW <- ghap.subsetphase(phase = phase, ids = ASW.ids, markers = markers)
-# phase.CEU <- ghap.subsetphase(phase = phase, ids = CEU.ids, markers = markers)
+# phase.ASW <- ghap.subsetphase(phase, ASW.ids, markers)
+# phase.CEU <- ghap.subsetphase(phase, CEU.ids, markers)
 # 
 # # Merge phase.ASW and phase.CEU
-# phase.merge <- ghap.mergephase(phase.1 = phase.ASW, phase.2 = phase.CEU)
+# phase.merge <- ghap.mergephase(phase.ASW, phase.CEU)
 
 
 }

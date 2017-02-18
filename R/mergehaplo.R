@@ -1,6 +1,6 @@
 #Function: ghap.mergehaplo
 #License: GPLv3 or later
-#Modification date: 15 Apr 2016
+#Modification date: 18 Feb 2017
 #Written by: Marco Milanesi & Yuri Tani Utsunomiya
 #Contact: marco.milanesi.mm@gmail.com, ytutsunomiya@gmail.com
 #Description: Merge GHap.haplo objects 

@@ -8,7 +8,8 @@
   This function takes a GHap.phase object and computes the minor allele frequency for each marker.
 }
 \usage{
-  ghap.maf(phase, only.active.samples = TRUE, only.active.markers = TRUE, ncores = 1)
+  ghap.maf(phase, only.active.samples = TRUE, only.active.markers = TRUE,
+           ncores = 1)
 }
 
 \arguments{
@@ -46,13 +47,10 @@
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
+# 
 # ### RUN ###
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Calculate minor allele frequency
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
 
 }

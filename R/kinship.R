@@ -1,6 +1,6 @@
 #Function: ghap.kinship
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Compute haplotype covariance matrix
@@ -22,7 +22,7 @@ ghap.kinship<-function(
   #Check if inactive alleles and samples should be reactived
   if(only.active.alleles == FALSE){
     haplo$allele.in <- rep(TRUE,times=haplo$nalleles)
-    haplo$nalleles.in<-length(which(haplo$allele.in))
+    haplo$nalleles.in <- length(which(haplo$allele.in))
   }
   if(only.active.samples == FALSE){
     haplo$id.in <- rep(TRUE,times=haplo$nsamples)
@@ -54,15 +54,16 @@ ghap.kinship<-function(
   
   #Initialize kinship matrix
   cat("Preparing",haplo$nsamples.in,"x",haplo$nsamples.in,"kinship matrix.\n")
-  K <- matrix(data = 0, nrow = haplo$nsamples.in, ncol = haplo$nsamples.in)
+  K <- Matrix(data = 0, nrow = haplo$nsamples.in, ncol = haplo$nsamples.in)
+  K <- as(as(K,"dsyMatrix"),"dspMatrix")
   
   #Kinship iterate function
   kinship.FUN<-function(i){
     slice <- activealleles[batch == mybatch[i]]
-    Ztmp <- haplo$genotypes[slice,haplo$id.in]
+    Ztmp <- as(haplo$genotypes[slice,haplo$id.in], "dgeMatrix")
     Ztmp.mean <- apply(X = Ztmp,MARGIN = 1,FUN = mean)
     Ztmp <- (Ztmp - Ztmp.mean)
-    K <- K + crossprod(Ztmp,weights[batch == mybatch[i]]*Ztmp)
+    K <- K + crossprod(Ztmp*sqrt(weights[batch == mybatch[i]]))
     return(K)
   }
   
@@ -79,9 +80,10 @@ ghap.kinship<-function(
   
   #Scale kinship matrix
   #K <- K/haplo$nalleles.in
-  varfun <- function(j) return(var(haplo$genotypes[j,haplo$id.in]))
-  q <- unlist(mclapply(X=activealleles,FUN = varfun))
-  q <- sum(q*weights)
+  #varfun <- function(j) return(var(haplo$genotypes[j,haplo$id.in]))
+  #q <- unlist(mclapply(X=activealleles,FUN = varfun))
+  #q <- sum(q*weights)
+  q <- mean(diag(K))
   K <- K/q
   colnames(K) <- haplo$id[haplo$id.in]
   rownames(K) <- colnames(K)

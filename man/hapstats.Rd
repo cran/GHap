@@ -71,6 +71,9 @@ ghap.hapstats(haplo, alpha = c(1,1), only.active.samples = TRUE,
  \item{POI.logP}{
   log10(1/P) or -log10(P) for Hardy-Weinberg equilibrium assuming number of homozygotes follows a Poisson distribution.
  }
+ \item{TYPE}{
+  Category of the haplotype: "SINGLETON" = unique haplotype of its block; "ABSENT" = the frequency of the allele is 0; "MINOR" = the least frequent haplotype of its block (in the case of ties, only the first haplotype is marked); "MAJOR" = the most frequent hapotype of its block (ties are also resolved by marking the first haplotype); "REGULAR" = the haplotype does not fall in any of the previous categories. Categories "SINGLETON", "MINOR" and "MAJOR" only apply for blocks where frequencies sum to 1.
+ }
  
 }
 
@@ -90,26 +93,24 @@ Marco Milanesi <marco.milanesi.mm@gmail.com>
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Subset data - markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
 # 
-# # Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-# blocks <- ghap.blockgen(phase, 10, 5, "marker")
-# 
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+#
 # # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks, batchsize = 100, ncores = 2, freq = 0.05, outfile = "example")
-# 
+# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+#
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("example.hapsamples", "example.hapalleles", "example.hapgenotypes")
-# 
-# 
+# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+#
+#
 # ### RUN ###
-# 
-# # Compute haplotype allele statistics
+#
+# #Compute haplotype statistics
 # hapstats <- ghap.hapstats(haplo, ncores = 2)
 
 }

@@ -72,50 +72,49 @@ Marco Milanesi <marco.milanesi.mm@gmail.com>
 
 \examples{
 
-##### DO NOT RUN IF NOT NECESSARY ###
+# #### DO NOT RUN IF NOT NECESSARY ###
+# 
+# # Copy the example data in the current working directory
+# ghap.makefile()
+# 
+# # Load data
+# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# 
+# # Subset data - markers with maf > 0.05
+# maf <- ghap.maf(phase, ncores = 2)
+# markers <- phase$marker[maf > 0.05]
+# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
+# 
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
 #
-## Copy the example data in the current working directory
-#ghap.makefile()
+# # Generate matrix of haplotype genotypes
+# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
 #
-## Load data
-#phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Load haplotype genotypes
+# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+# 
 #
+# ### RUN ###
 #
-#### RUN ###
+# # Compute haplotype allele statistics for each group
+# haplo <- ghap.subsethaplo(haplo,haplo$id,rep(TRUE,times=haplo$nalleles))
+# ASW.ids <- unique(haplo$id[haplo$pop=="ASW"])
+# YRI.ids <- unique(haplo$id[haplo$pop=="YRI"])
+# CEU.ids <- unique(haplo$id[haplo$pop=="CEU"])
+# haplo <- ghap.subsethaplo(haplo,YRI.ids,haplo$allele.in)
+# YRI.hapstats <- ghap.hapstats(haplo,ncores = 2)
+# haplo <- ghap.subsethaplo(haplo,CEU.ids,haplo$allele.in)
+# CEU.hapstats <- ghap.hapstats(haplo,ncores = 2)
+# haplo <- ghap.subsethaplo(haplo,ASW.ids,haplo$allele.in)
+# ASW.hapstats <- ghap.hapstats(haplo,ncores = 2)
+# haplo <- ghap.subsethaplo(haplo,haplo$id,rep(TRUE,times=haplo$nalleles))
 #
-## Subset data - randomly select 3000 markers with maf > 0.02
-#ASW.ids <- unique(phase$id[phase$pop=="ASW"])
-#YRI.ids <- unique(phase$id[phase$pop=="YRI"])
-#CEU.ids <- unique(phase$id[phase$pop=="CEU"])
-#phase <- ghap.subsetphase(phase, c(ASW.ids,YRI.ids,CEU.ids), phase$marker)
-#maf <- ghap.maf(phase, ncores = 2)
-#set.seed(1988)
-#markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
-#phase <- ghap.subsetphase(phase, c(ASW.ids,YRI.ids,CEU.ids), markers)
-#rm(maf,markers)
-#
-## Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-#blocks <- ghap.blockgen(phase, 10, 5, "marker")
-#
-## Generate matrix of haplotype genotypes
-#ghap.haplotyping(phase, blocks, batchsize = 100, ncores = 2, freq = 0, outfile = "example")
-#
-# Load haplotype genotypes
-#haplo <- ghap.loadhaplo("example.hapsamples", "example.hapalleles", "example.hapgenotypes")
-#
-# Compute haplotype allele statistics for each group
-#haplo <- ghap.subsethaplo(haplo,YRI.ids,haplo$allele.in)
-#YRI.hapstats <- ghap.hapstats(haplo,ncores = 2)
-#haplo <- ghap.subsethaplo(haplo,CEU.ids,haplo$allele.in)
-#CEU.hapstats <- ghap.hapstats(haplo,ncores = 2)
-#haplo <- ghap.subsethaplo(haplo,ASW.ids,haplo$allele.in)
-#ASW.hapstats <- ghap.hapstats(haplo,ncores = 2)
-
-## Find haplotype origin
-## ASW is the test population. YRI and CEU are used as parental populations
-## The frequency threshold is set to 0.05 and the probability of assignment to 0.60
-#ancestry <- ghap.ancestral(ASW.hapstats, YRI.hapstats, CEU.hapstats, 0.05, 0.60)
-
+# # Find haplotype origin
+# # ASW is the test population. YRI and CEU are used as parental populations
+# # The frequency threshold is set to 0.05 and the probability of assignment to 0.60
+# ancestry <- ghap.ancestral(ASW.hapstats, YRI.hapstats, CEU.hapstats, 0.05, 0.60)
+# ancestry <- ancestry[ancestry$FREQ.TEST > 0,]
 
 }
 

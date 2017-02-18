@@ -1,6 +1,6 @@
 #Function: ghap.makefile
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Marco Milanesi
 #Contact: marco.milanesi.mm@gmail.com
 #Description: Create a copy of the example file in the working directory

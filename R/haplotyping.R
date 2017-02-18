@@ -1,6 +1,6 @@
 #Function: ghap.haplotyping
 #License: GPLv3 or later
-#Modification date: 5 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya & Marco Milanesi
 #Contact: ytutsunomiya@gmail.com, marco.milanesi.mm@gmail.com
 #Description: Output haplotype genotype matrix for user-defined haplotype blocks
@@ -9,7 +9,8 @@ ghap.haplotyping<-function(
   phase,
   blocks,
   outfile,
-  freq=0.05,
+  freq=c(0,1),
+  drop.minor=FALSE,
   batchsize=500,
   ncores=1,
   verbose=TRUE
@@ -48,6 +49,9 @@ ghap.haplotyping<-function(
   write.table(x = cbind(pop,id),file = hapsamples,quote = FALSE,row.names = FALSE,col.names=FALSE)
   
   #Generate batch index
+  if(batchsize > nrow(blocks)){
+    batchsize <- nrow(blocks)
+  }
   id1<-seq(1,nrow(blocks),by=batchsize)
   id2<-(id1+batchsize)-1
   id1<-id1[id2<=nrow(blocks)]
@@ -80,15 +84,23 @@ ghap.haplotyping<-function(
     phase.A0 <- phase$A0[snps]
     phase.A1 <- phase$A1[snps]
     
-    if(length(snps) > 1){
+    if(length(snps) >= 1){
       
       #Subset block
-      block.subset <- phase$phase[snps,ids.in]
-      haplotypes <- apply(block.subset,MARGIN = 2, paste, collapse="")
+      if(length(snps) == 1){
+        haplotypes <- as.character(phase$phase[snps,ids.in])
+      }else{
+        block.subset <- phase$phase[snps,ids.in]
+        haplotypes <- apply(block.subset,MARGIN = 2, paste, collapse="")
+      }
       
       #Haplotype library
       lib <- table(haplotypes)/(2*ids.n)
-      lib <- lib[which(lib >= freq)]
+      lib <- sort(lib)
+      if(drop.minor == TRUE & length(lib) > 1){
+        lib <- lib[-1]
+      }
+      lib <- lib[lib >= freq[1] & lib <= freq[2]]
       
       #Output genotype matrix
       if(length(lib) >= 1){
@@ -119,7 +131,14 @@ ghap.haplotyping<-function(
     hapalleles.con  <- file(hapalleles, open = "a")  
     
     #Compute blocks
-    mylines<-unlist(mclapply(FUN = block.iter.FUN,id1[i]:id2[i],mc.cores = ncores))
+    ncores <- min(c(detectCores(),ncores))
+    if(Sys.info()["sysname"] == "Windows"){
+      cat("\nParallelization not supported yet under Windows (using a single core).\n")
+      mylines <- unlist(lapply(FUN = block.iter.FUN, X = id1[i]:id2[i]))
+    }else{
+      mylines <- unlist(mclapply(FUN = block.iter.FUN, X = id1[i]:id2[i], mc.cores = ncores))
+    }
+    
     #Write batch to files
     if(is.null(mylines) == F){
       writeLines(text = mylines[1:length(mylines) %% 2 == 1],con=hapalleles.con)

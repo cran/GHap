@@ -1,6 +1,6 @@
 #Function: ghap.maf
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Compute marker minor allele frequencies
@@ -29,6 +29,13 @@ ghap.maf<-function(phase,only.active.samples=TRUE,only.active.markers=TRUE,ncore
     return(p)
   }
   
-  maf <- unlist(mclapply(FUN = maf.FUN,which(phase$marker.in),mc.cores = ncores))
+  ncores <- min(c(detectCores(),ncores))
+  if(Sys.info()["sysname"] == "Windows"){
+    cat("\nParallelization not supported yet under Windows (using a single core).\n")
+    maf <- lapply(X = which(phase$marker.in), FUN = maf.FUN)
+  }else{
+    maf <- mclapply(FUN = maf.FUN, X = which(phase$marker.in), mc.cores = ncores)
+  }
+  maf <- unlist(maf)
   
 }

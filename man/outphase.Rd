@@ -40,6 +40,7 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 
 \examples{
 
+
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
@@ -48,21 +49,19 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
-# maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
-# 
 # 
 # ### RUN ###
+# 
+# # Subset data - markers with maf > 0.05
+# maf <- ghap.maf(phase, ncores = 2)
+# markers <- phase$marker[maf > 0.05]
+# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
 # 
 # # Output data
 # ghap.outphase(phase, "example")
 # 
 # # Reload
-# phase <- ghap.loadphase("example.samples", "example.markers", "example.phase")
+# phasesub <- ghap.loadphase("example.samples", "example.markers", "example.phase")
 
 }
 

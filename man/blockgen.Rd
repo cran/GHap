@@ -5,10 +5,10 @@
  Haplotype block generator
 }
 \description{
- This function generates HapBlocks based on sliding windows. The window and the step size can be specified in markers or kb. For each window, block coordinates are generated.
+ This function generates HapBlocks based on sliding windows. The window and the step size can be specified in markers or kbp. For each window, block coordinates are generated.
 }
 \usage{
- ghap.blockgen(phase, windowsize = 10, slide = 5, unit = "marker")
+ ghap.blockgen(phase, windowsize = 10, slide = 5, unit = "marker", nsnp = 2)
 }
 
 \arguments{
@@ -22,7 +22,10 @@
    A numeric value for the step size (default = 5).
   }
   \item{unit}{
-  A character value for the size unit used for the window and the step. It can be either "marker" or "kb" (default = "marker").
+  A character value for the size unit used for the window and the step. It can be either "marker" or "kbp" (default = "marker").
+  }
+  \item{nsnp}{
+  A numeric value for the minimum number of markers per block.
   }
 }
 
@@ -62,21 +65,18 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Subset data - markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
-# 
 # 
 # ### RUN ###
 # 
-# # Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-# blocks <- ghap.blockgen(phase, 10, 5, "marker")
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
 # 
-# # Generate block coordinates based on windows of 500 kb, sliding 100 kb at a time
-# blocks <- ghap.blockgen(phase, 500, 100, "kb")
+# # Generate blocks of 100 kb sliding 100 kbp at a time
+# blocks.kb <- ghap.blockgen(phase, windowsize = 100, slide = 100, unit = "kbp")
 
 }
 

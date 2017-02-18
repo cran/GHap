@@ -19,3 +19,11 @@
 4 - ghap.lmm. This function uses L-BGFS-B minimization to obtain maximum likelihood estimates of mixed model parameters.
 5 - The package has now a startup message giving instructions to access the vignette, as well as information regarding citation.
 6 - ghap.simpheno. Extended capabilities to scale the total phenotypic variance and fine tune variance explained by specific haplotypes.
+
+### Version 1.2.2
+
+# Inclusion of new utilities
+
+1 - The Matrix package is now used to handle big and sparse matrices
+2 - ghap.blmm, ghap.mme and ghap.lmm have been replaced by a single ghap.lmm function Bayesian models will be re-implemented in the future.
+3 - The lme4 package is now used to fit generalized linear models.

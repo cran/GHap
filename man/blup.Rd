@@ -5,20 +5,27 @@
 Convert breeding values into BLUP solutions of HapAllele effects
 }
 \description{
-Given solutions for a mixed linear model, compute Best Linear Unbiased Predictor (BLUP) solutions for HapAllele effects.
+Given genomic estimated breeding values (GEBVs), compute Best Linear Unbiased Predictor (BLUP) solutions for HapAllele effects.
 }
 \usage{
-ghap.blup(blmm,haplo,weights=NULL,nperm=1,only.active.alleles = TRUE,ncores = 1)
+ghap.blup(gebvs,haplo,invcov, gebvsweights = NULL, haploweights = NULL, nperm = 1,
+          only.active.alleles = TRUE, ncores = 1)
 }
 
 \arguments{
-  \item{blmm}{
-   A GHap.blmm object, such as supplied by the \code{\link{ghap.blmm}} function.
+  \item{gebvs}{
+   A vector of GEBVs. The vector must be named and all names must be present in the GHap.haplo object.
   }
   \item{haplo}{
    A GHap.haplo object.
   }
-  \item{weights}{
+   \item{invcov}{
+  The inverse covariance (i.e., genomic kinship) matrix for GEBVs.
+ }
+  \item{gebvsweights}{
+    A numeric vector providing individual-specific weights.
+  }
+  \item{haploweights}{
     A numeric vector providing HapAllele-specific weights.
   }
   \item{nperm}{
@@ -77,9 +84,9 @@ The function returns a dataframe with columns:
 
 The function uses the equation:
 
-\deqn{\mathbf{\hat{a}} = q\mathbf{DH}'\mathbf{K}^{-1}\mathbf{\hat{u}}}
+\deqn{\mathbf{\hat{a}} = q\mathbf{DM}'\mathbf{K}^{-1}\mathbf{\hat{u}}}
 
-where \eqn{\mathbf{H}} is the \emph{n} x \emph{m} centered matrix of HapGenotypes observed for \emph{n} individuals and \emph{m} HapAlleles, \eqn{\mathbf{D} = diag(d_i)}, \eqn{d_i} is the weight of HapAllele \emph{i} (default \eqn{d_i = 1}), \eqn{q} is the inverse weighted sum of variances in the columns of \eqn{\mathbf{H}}, \eqn{\mathbf{K}} is the haplotype-based kinship matrix and \eqn{\hat{u}} is the vector of estimated breeding values. The permutation procedure consists in randomizing the vector \eqn{\hat{\mathbf{u}}} and computing the null statistic \eqn{max(\mathbf{\hat{a}})}. The permutation p-value is computed as the number of times the HapAllele effect was smaller than the null statistic.
+where \eqn{\mathbf{M}} is the \emph{N} x \emph{H} centered matrix of HapGenotypes observed for \emph{N} individuals and \emph{H} HapAlleles, \eqn{\mathbf{D} = diag(d_i)}, \eqn{d_i} is the weight of HapAllele \emph{i} (default \eqn{d_i = 1}), \eqn{q} is the inverse weighted sum of variances in the columns of \eqn{\mathbf{M}}, \eqn{\mathbf{K}} is the haplotype-based kinship matrix and \eqn{\hat{u}} is the vector of GEBVs. The permutation procedure consists in randomizing the vector \eqn{\hat{\mathbf{u}}} and computing the null statistic \eqn{max(\mathbf{\hat{a}})}. The permutation p-value is computed as the number of times the HapAllele effect was smaller than the null statistic.
 
 }
 
@@ -101,61 +108,71 @@ I. Stranden and D.J. Garrick. Technical note: derivation of equivalent computing
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Subset data - markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
 # 
-# # Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-# blocks <- ghap.blockgen(phase, 10, 5, "marker")
-# 
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+#
 # # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks, batchsize = 100, ncores = 2, freq = 0.05, outfile = "example")
-# 
+# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+#
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("example.hapsamples", "example.hapalleles", "example.hapgenotypes")
-# 
-# # Compute kinship matrix
+# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+#
+#
+# ### RUN ###
+# # Subset common haplotypes in Europeans
+# EUR.ids <- haplo$id[haplo$pop \%in\% c("TSI","CEU")]
+# haplo <- ghap.subsethaplo(haplo,EUR.ids,rep(TRUE,times=haplo$nalleles))
+# hapstats <- ghap.hapstats(haplo, ncores = 2)
+# common <- hapstats$TYPE \%in\% c("REGULAR","MAJOR") &
+#  hapstats$FREQ > 0.05 &
+#  hapstats$FREQ < 0.95
+# haplo <- ghap.subsethaplo(haplo,EUR.ids,common)
+#
+# #Compute relationship matrix
 # K <- ghap.kinship(haplo, batchsize = 100)
 # 
 # # Quantitative trait with 50\% heritability
-# # One major haplotype accounting for 30\% of the genetic variance
-# sim <- ghap.simpheno(haplo = haplo, K = K, h2 = 0.5, g2 = 0.3, major = 1000,seed=1988)
+# # Unbalanced repeated measurements (0 to 30)
+# # Two major haplotypes accounting for 50\% of the genetic variance
+# myseed <- 123456789
+# set.seed(myseed)
+# major <- sample(which(haplo$allele.in == TRUE),size = 2)
+# g2 <- runif(n = 2, min = 0, max = 1)
+# g2 <- (g2/sum(g2))*0.5
+# sim <- ghap.simpheno(haplo, kinship = K, h2 = 0.5, g2 = g2, nrep = 30,
+#                      balanced = FALSE, major = major, seed = myseed)
 # 
-# # Continuous model
-# model <- ghap.blmm(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K)
+# #Fit model using REML
+# model <- ghap.lmm(fixed = phenotype ~ 1, random = ~ individual,
+#                   covmat = list(individual = K), data = sim$data)
 # 
+#
 # ### RUN ###
 # 
-# 
-# # BLUP solutions for HapAllele effects
-# blup <- ghap.blup(blmm = model, haplo = haplo, ncores=2)
-# blup$POS <- (blup$BP1+blup$BP2)/2e+6
-# plot(blup$POS,100*blup$pVAR, xlab="Chromosome 2 position (in Mb)",
-#      ylab="Haplotype variance explained (\%)", pch=20, col="#471FAA99")
-# abline(v=(haplo$bp1[1000]+haplo$bp2[1000])/2e+6,lty=3)
-# 
-# # Permutation test
-# blup <- ghap.blup(blmm = model, haplo = haplo, ncores=2, nperm = 1000)
-# blup$POS <- (blup$BP1+blup$BP2)/2e+6
-# plot(blup$POS,-log10(blup$P), xlab="Chromosome 2 position (in Mb)",
-#      ylab=expression(-log[10](p)), pch=20, col="#471FAA99")
-# abline(v=(haplo$bp1[1000]+haplo$bp2[1000])/2e+6,lty=3)
-# abline(h=-log10(0.05))
-# 
-# # Re-weighted solutions
-# w <- nrow(blup)*blup$pVAR
-# K <- ghap.kinship(haplo, weights = w, batchsize = 100)
-# model2 <- ghap.mme(fixed = phenotype ~ 1, random = "individual", data = sim$data, K = K, 
-#                    varcomp=c(model$vare,model$varu))
-# blup <- ghap.blup(blmm = model2, haplo = haplo, weights = w, ncores=2)
-# blup$POS <- (blup$BP1+blup$BP2)/2e+6
-# plot(blup$POS,100*blup$pVAR, xlab="Chromosome 2 position (in Mb)",
-#      ylab="Haplotype variance explained (\%)", pch=20, col="#471FAA99")
-# abline(v=(haplo$bp1[1000]+haplo$bp2[1000])/2e+6,lty=3)
-# sim$major.effect
-# blup$SCORE[1000]
+# #BLUP GWAS
+# gebvs <- model$random$individual
+# gebvsw <- table(sim$data$individual)
+# gebvsw <- gebvsw + mean(gebvsw)
+# gebvsw <- gebvsw[names(gebvs)]
+# Kinv <- ghap.kinv(K)
+# gwas.blup <- ghap.blup(gebvs = gebvs, haplo = haplo, gebvsweights = gebvsw,
+#                        ncores = 4, invcov = Kinv)
+# plot(gwas.blup$BP1/1e+6,gwas.blup$pVAR*100,pch=20,
+#      xlab="Position (in Mb)",ylab="Variance explained (\%)")
+# abline(v=haplo$bp1[major]/1e+6)
+# #BLUP with one update
+# w <- gwas.blup$VAR*nrow(gwas.blup)
+# K2 <- ghap.kinship(haplo=haplo,weights = w)
+# Kinv2 <- ghap.kinv(K2)
+# gwas.blup2 <- ghap.blup(gebvs = gebvs, haplo = haplo, invcov = Kinv2, ncores = 2,
+#                         gebvsweights = gebvsw, haploweights = w)
+# plot(gwas.blup2$BP1/1e+6,gwas.blup2$pVAR*100,pch=20,
+#      xlab="Position (in Mb)",ylab="Variance explained (\%)")
+# abline(v=haplo$bp1[major]/1e+6)
 
 }

@@ -39,11 +39,11 @@ The function returns a \emph{n} x \emph{n} matrix of HapAllele-based kinships, w
 
 \details{
 
-Briefly, let \eqn{\mathbf{H}} be the centered \emph{n} x \emph{m} matrix of HapGenotypes, where \emph{n} is the number of individuals and \emph{m} is the number of HapAlleles. The HapAllele covariance among individuals is computed as:
+Let \eqn{\mathbf{M}} be the centered \emph{N} x \emph{H} matrix of HapGenotypes, where \emph{N} is the number of individuals and \emph{H} is the number of HapAlleles. The HapAllele covariance among individuals is computed as:
 
-\deqn{\mathbf{K} = q\mathbf{HDH}'}
+\deqn{\mathbf{K} = q\mathbf{MDM}'}
 
-where \eqn{\mathbf{D} = diag(d_i)}, \eqn{d_i} is the weight of HapAllele \emph{i} (default \eqn{d_i = 1}), and \eqn{q} is the inverse weighted sum of variances in the columns of \eqn{\mathbf{H}}. Notice that this is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008).
+where \eqn{\mathbf{D} = diag(d_i)}, \eqn{d_i} is the weight of HapAllele \emph{i} (default \eqn{d_i = 1}), and \eqn{q} is a scaling factor defined as \eqn{tr(\mathbf{MDM}')^{-1}M}. This is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008).
 
 }
 
@@ -68,25 +68,27 @@ P. M. VanRaden. Efficient methods to compute genomic predictions. J. Dairy. Sci.
 # # Load data
 # phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
+# # Subset data - markers with maf > 0.05
 # maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
+# markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
 # 
-# # Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-# blocks <- ghap.blockgen(phase, 10, 5, "marker")
-# 
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+#
 # # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks, batchsize = 100, ncores = 2, freq = 0.05, outfile = "example")
-# 
+# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+#
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("example.hapsamples", "example.hapalleles", "example.hapgenotypes")
-# 
-# 
+# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+#
+#
 # ### RUN ###
 # 
+# # Exclude minor alleles and singletons
+# hapstats <- ghap.hapstats(haplo, ncores = 2)
+# haplo <- ghap.subsethaplo(haplo,ids=haplo$id,alleles = hapstats$TYPE \%in\% c("REGULAR","MAJOR"))
+#
 # # Compute Kinship matrix
 # K <- ghap.kinship(haplo, batchsize = 100)
 

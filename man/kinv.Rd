@@ -1,39 +1,29 @@
-\name{ghap.pca}
-\alias{ghap.pca}
+\name{ghap.kinv}
+\alias{ghap.kinv}
 
 \title{
-Principal Components Analysis
+Inverse of kinship matrix
 }
 \description{
-PCA from a HapAllele-based kinship matrix.
+Inversion of the haplotype covariance matrix
 }
 \usage{
-ghap.pca(haplo, kinship, npc = 2)
+ghap.kinv(kinship,  method="nearPD", ncores=1, proven=NULL)
 }
 
 \arguments{
-  \item{haplo}{
-   A GHap.haplo object.
-  }
   \item{kinship}{
-    A HapAllele-based kinship matrix, as supplied by \code{\link{ghap.kinship}}.
+   A HapAllele-based kinship matrix, as supplied by \code{\link{ghap.kinship}}.
   }
-  \item{npc}{
-    Number of principal components to be retrieved (default = 2).
+  \item{method}{
+   Inversion method: common inverse, inverse of the nearest positive definite matrix ("nearPD", default) and approximate inverse based on the Algorithm for Proven and Young animals ("APY").
   }
-}
-
-\value{
-The returned object is a list with items:
- \item{eigenvec}{
-  A data.frame containing the principal components of the kinship matrix.
+  \item{ncores}{
+  Number of cores to be used for computations (default = 1). Only relevant for method "APY".
  }
- \item{eigenval}{
-  Vector with eigenvalues of the kinship matrix.
- }
-  \item{propvar}{
-  Vector with the proportion of variance explained by each principal component.
- }
+  \item{proven}{
+   Character vector with the names of proven subjects to be used as reference for method "APY".
+  }
 }
 
 \author{
@@ -71,18 +61,16 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # # Compute Kinship matrix
 # K <- ghap.kinship(haplo, batchsize = 100)
 #
-# 
+#
 # ### RUN ###
 # 
-# # PCA analysis
-# pca <- ghap.pca(haplo,K)
-# 
-# # Plot
-# plot(x=pca$eigenvec$PC1, y=pca$eigenvec$PC2, xlab="PC1", ylab="PC2", pch="")
-# pop <- pca$eigenvec$POP
-# pop.col <- as.numeric(as.factor(pop))
-# pop <- sort(unique(pop))
-# legend("bottomleft", legend = pop, col = 1:length(pop), pch = 1:length(pop), ncol = 3)
-# points(x=pca$eigenvec$PC1, y=pca$eigenvec$PC2, pch = pop.col, col = pop.col, cex = 1.2)
+# # Common inverse
+# Kinv <- ghap.kinv(K, method="common")
+#
+# # Inverse of nearest positive definite matrix
+# Kinv <- ghap.kinv(K, method="nearPD")
+#
+# # APY inverse
+# Kinv <- ghap.kinv(K, method="APY", proven=colnames(K)[1:500], ncores=2)
 
 }

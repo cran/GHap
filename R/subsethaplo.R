@@ -1,6 +1,6 @@
 #Function: ghap.subsethaplo
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Subset a GHap.haplo object

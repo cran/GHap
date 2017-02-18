@@ -5,7 +5,7 @@
   Load phased genotype data
 }
 \description{
-  This function loads phased genotype data and converts it to a native GHap.phase object.
+  This function loads phased genotype data and converts them into a native GHap.phase object.
 }
 \usage{
   ghap.loadphase(samples.file, markers.file, phase.file, verbose = TRUE)

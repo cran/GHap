@@ -1,14 +1,15 @@
 #Function: ghap.assoc
 #License: GPLv3 or later
-#Modification date: 2 Feb 2016
+#Modification date: 18 Feb 2017
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: fit ordinary least squares for each haplotype allele
 
 ghap.assoc<-function(
-  blmm,
+  response,
   haplo,
-  type="HapAllele",
+  weights=NULL,
+  #type="HapAllele",
   gc=TRUE,
   only.active.alleles=TRUE,
   ncores=1
@@ -16,9 +17,6 @@ ghap.assoc<-function(
   
   
   #General data check
-  if (class(blmm) != "GHap.blmm") {
-    stop("Argument blmm must be a GHap.blmm object.")
-  }
   if (class(haplo) != "GHap.haplo") {
     stop("Argument haplo must be a GHap.haplo object.")
   }
@@ -26,41 +24,54 @@ ghap.assoc<-function(
     haplo$allele.in <- rep(TRUE, times = haplo$nalleles)
     haplo$nalleles.in <- length(which(haplo$allele.in))
   }
-  ids <- rep(NA, times = length(blmm$residuals))
-  for (i in 1:length(ids)) {
-    ids[i] <- which(haplo$id == names(blmm$residuals)[i])
+  if (length(which(names(response) %in% haplo$id)) != length(response)) {
+    stop("All ids in the response must be present in the GHap.haplo object.")
   }
-  if (length(which(names(blmm$residuals) %in% haplo$id)) != length(blmm$residuals)) {
-    stop("All ids in the GHap.blmm object must be present in the GHap.haplo object.")
+  ids <- rep(NA, times = length(response))
+  for (i in 1:length(ids)) {
+    ids[i] <- which(haplo$id == names(response)[i])
   }
   
-  #Check if GHap.blmm contains missing values
-  if(length(na.omit(blmm$residuals)) != length(blmm$residuals)){
+  #Check if response contains missing values
+  if(length(na.omit(response)) != length(response)){
     stop("Missing values are not accepted.")
   }
   
   #Include weights
-  blmm$w <- sqrt(1/blmm$weights)
-  blmm$residuals <- blmm$w*blmm$residuals
+  if(is.null(weights)==FALSE){
+    w <- sqrt(weights/mean(weights))
+    response <- w*response
+  }
   
-  if(type == "HapAllele"){
+  #Center response
+  response <- response - mean(response)
+  
+#  if(type == "HapAllele"){
     
     #ols iterate function
     ols.FUN <- function(j){
-      x <- haplo$genotypes[j,ids]
+      x <- haplo$genotypes[j,unique(ids)]
       frq <- sum(x)/(2*length(x))
+      x <- haplo$genotypes[j,ids]
       x <- (x-mean(x))/sd(x)
-      x <- blmm$w*x
+      if(is.null(weights)==F){
+        x <- w*x
+      }
       xpxi <- 1/sum(x^2)
-      xpy <- sum(x*blmm$residuals)
+      xpy <- sum(x*response)
       b <- xpxi*xpy
-      se <- sqrt(var(blmm$residuals - x*b)*xpxi)
+      se <- sqrt(var(response - x*b)*xpxi)
       return(c(b,se,frq))
     }
     
     #Compute haplotype regression statistics
-    a <- mclapply(FUN=ols.FUN,X=which(haplo$allele.in),mc.cores = ncores)
-    
+    ncores <- min(c(detectCores(),ncores))
+    if(Sys.info()["sysname"] == "Windows"){
+      cat("\nParallelization not supported yet under Windows (using a single core).\n")
+      a <- lapply(FUN = ols.FUN, X = which(haplo$allele.in))
+    }else{
+      a <- mclapply(FUN = ols.FUN, X = which(haplo$allele.in), mc.cores = ncores)
+    }
     a <- data.frame(matrix(unlist(a), nrow=haplo$nalleles.in, byrow=TRUE))
     hapreg <- NULL
     hapreg$BLOCK <- haplo$block[haplo$allele.in]
@@ -82,156 +93,133 @@ ghap.assoc<-function(
     }
     hapreg$logP <- -1*pchisq(q = hapreg$CHISQ.OBS, df = 1, lower.tail=FALSE, log.p = TRUE)/log(10)
     hapreg <- data.frame(hapreg,stringsAsFactors = FALSE)
-  } else if(type == "HapBlock") {
-    
-    #ols iterate function for HapBlock
-    ols.FUN <- function(j){
-      hapalleles <- which(haplo$block == j)
-      nalleles <- length(hapalleles)
-      X <- as.matrix(haplo$genotypes[hapalleles,ids])
-      if(nalleles == 0){
-        nu1 <- NA
-        nu2 <- NA
-        ftest <- NA
-      }else if(nalleles == 1){
-        freq <- sum(X)/(2*haplo$nsamples.in)
-        if(freq == 1){
-          nu1 <- NA
-          nu2 <- NA
-          ftest <- NA
-        }else{
-          X[X == 0] <- 2*freq
-          X[X == 1] <- -(1 - 2*freq)
-          X[X == 2] <- -2*(1 - freq)
-          X <- blmm$w*X
-          XpXi <- 1/(sum(X^2))
-          Xpy <- sum(X*blmm$residuals)
-          b <- XpXi*Xpy
-          Xb <- sum(X*b)
-          RSS <- sum((blmm$residuals - Xb)^2)
-          ESS <- sum((Xb - mean(blmm$residuals))^2)
-          nu1 <- 1
-          nu2 <- length(blmm$residuals)-1
-          ftest <- (ESS/nu1)/(RSS/nu2)
-        }
-      }else if(nalleles == 2){
-        freq <- rowSums(X)/(2*haplo$nsamples.in)
-        if(sum(freq) == 1){
-          haporder <- order(rank(freq))
-          freq <- freq[haporder]
-          freq <- freq[-1]
-          X <- X[haporder,]
-          X <- X[-1,]
-          X[X == 0] <- 2*freq
-          X[X == 1] <- -(1 - 2*freq)
-          X[X == 2] <- -2*(1 - freq)
-          X <- blmm$w*X
-          XpXi <- 1/(sum(X^2))
-          Xpy <- sum(X*blmm$residuals)
-          b <- XpXi*Xpy
-          Xb <- sum(X*b)
-          RSS <- sum((blmm$residuals - Xb)^2)
-          ESS <- sum((Xb - mean(blmm$residuals))^2)
-          nu1 <- 1
-          nu2 <- length(blmm$residuals)-1
-          ftest <- (ESS/nu1)/(RSS/nu2)
-        }else{
-          for(i in 1:nrow(X)){
-            x <- X[i,]
-            x[x == 0] <- 2*freq[i]
-            x[x == 1] <- -(1 - 2*freq[i])
-            x[x == 2] <- -2*(1 - freq[i])
-            X[i,] <- x
-          }
-          Xp <- X
-          X <- t(X)
-          X <- blmm$w*X
-          XpXi <- svd(Xp%*%X)
-          XpXi <- XpXi$v%*%diag(1/XpXi$d)%*%t(XpXi$u)
-          Xpy <- Xp%*%blmm$residuals
-          b <- XpXi%*%Xpy
-          Xb <- X%*%b
-          RSS <- sum((blmm$residuals - Xb)^2)
-          ESS <- sum((Xb - mean(blmm$residuals))^2)
-          nu1 <- nalleles-1
-          nu2 <- length(blmm$residuals)-nalleles-1
-          ftest <- (ESS/nu1)/(RSS/nu2)
-        }
-      }else if(nalleles > 2){
-        freq <- rowSums(X)/(2*haplo$nsamples.in)
-        if(sum(freq) == 1){
-          haporder <- order(rank(freq))
-          freq <- freq[haporder]
-          freq <- freq[-1]
-          X <- X[haporder,]
-          X <- X[-1,]
-          for(i in 1:nrow(X)){
-            x <- X[i,]
-            x[x == 0] <- 2*freq[i]
-            x[x == 1] <- -(1 - 2*freq[i])
-            x[x == 2] <- -2*(1 - freq[i])
-            X[i,] <- x
-          }
-          Xp <- X
-          X <- t(X)
-          X <- blmm$w*X
-          XpXi <- svd(Xp%*%X)
-          XpXi <- XpXi$v%*%diag(1/XpXi$d)%*%t(XpXi$u)
-          Xpy <- Xp%*%blmm$residuals
-          b <- XpXi%*%Xpy
-          Xb <- X%*%b
-          RSS <- sum((blmm$residuals - Xb)^2)
-          ESS <- sum((Xb - mean(blmm$residuals))^2)
-          nu1 <- nalleles-1
-          nu2 <- length(blmm$residuals)-nalleles-1
-          ftest <- (ESS/nu1)/(RSS/nu2)
-        }else{
-          for(i in 1:nrow(X)){
-            x <- X[i,]
-            x[x == 0] <- 2*freq[i]
-            x[x == 1] <- -(1 - 2*freq[i])
-            x[x == 2] <- -2*(1 - freq[i])
-            X[i,] <- x
-          }
-          Xp <- X
-          X <- t(X)
-          X <- blmm$w*X
-          XpXi <- svd(Xp%*%X)
-          XpXi <- XpXi$v%*%diag(1/XpXi$d)%*%t(XpXi$u)
-          Xpy <- Xp%*%blmm$residuals
-          b <- XpXi%*%Xpy
-          Xb <- X%*%b
-          RSS <- sum((blmm$residuals - Xb)^2)
-          ESS <- sum((Xb - mean(blmm$residuals))^2)
-          nu1 <- nalleles-1
-          nu2 <- length(blmm$residuals)-nalleles-1
-          ftest <- (ESS/nu1)/(RSS/nu2)
-          
-        }
-      }
-      return(c(nalleles,nu1,nu2,ftest))
-    }
-    
-    #Get unique blocks
-    blocks <- unique(data.frame(haplo$block,haplo$chr,haplo$bp1,haplo$bp2,stringsAsFactors = FALSE))
-    colnames(blocks) <- c("BLOCK","CHR","BP1","BP2")
-    
-    #Compute haplotype regression statistics
-    a <- mclapply(FUN=ols.FUN,X=blocks$BLOCK,mc.cores = ncores)
-    a <- data.frame(matrix(unlist(a), nrow=nrow(blocks), byrow=TRUE))
-    
-    hapreg <- NULL
-    hapreg$BLOCK <- blocks$BLOCK
-    hapreg$CHR <- blocks$CHR
-    hapreg$BP1 <- blocks$BP1
-    hapreg$BP2 <- blocks$BP1
-    hapreg$N.ALLELES <- as.integer(a[,1])
-    hapreg$F.TEST <- a[,4]
-    hapreg$logP <- -1*pf(q = hapreg$F.TEST, df1 = a[,2], df2 = a[,3], lower.tail=FALSE, log.p = TRUE)/log(10)
-    hapreg <- data.frame(hapreg,stringsAsFactors = FALSE)
-  } else {
-    stop("Argument type must be 'HapAllele' or 'HapBlock'")
-  }
+  # } else if(type == "HapBlock") {
+  #   
+  #   #ols iterate function for HapBlock
+  #   ols.FUN <- function(j){
+  #     hapalleles <- which(haplo$block == j)
+  #     nalleles <- length(hapalleles)
+  #     if(nalleles == 0){
+  #       nu1 <- NA
+  #       nu2 <- NA
+  #       ftest <- NA
+  #     }else if(nalleles == 1){
+  #       X <- as.matrix(haplo$genotypes[hapalleles,unique(ids)])
+  #       freq <- sum(X)/(2*haplo$nsamples.in)
+  #       X <- as.matrix(haplo$genotypes[hapalleles,ids])
+  #       if(freq == 1){
+  #         nu1 <- NA
+  #         nu2 <- NA
+  #         ftest <- NA
+  #       }else{
+  #         X <- X - mean(X)
+  #         if(is.null(weights)==F){
+  #           X <- w*X
+  #         }
+  #         b <- sum(X*response)/(sum(X^2))
+  #         Xb <- sum(X*b)
+  #         RSS <- sum((response - Xb)^2)
+  #         ESS <- sum((Xb - mean(response))^2)
+  #         nu1 <- 1
+  #         nu2 <- length(response)-1
+  #         ftest <- (ESS/nu1)/(RSS/nu2)
+  #       }
+  #     }else if(nalleles == 2){
+  #       X <- as.matrix(haplo$genotypes[hapalleles,unique(ids)])
+  #       freq <- rowSums(X)/(2*haplo$nsamples.in)
+  #       X <- as.matrix(haplo$genotypes[hapalleles,ids])
+  #       if(sum(freq) == 1){
+  #         haporder <- order(rank(freq))
+  #         freq <- freq[haporder]
+  #         freq <- freq[-1]
+  #         X <- X[haporder,]
+  #         X <- X[-1,]
+  #         X <- X - mean(X)
+  #         if(is.null(weights)==F){
+  #           X <- w*X
+  #         }
+  #         b <- sum(X*response)/(sum(X^2))
+  #         Xb <- sum(X*b)
+  #         RSS <- sum((response - Xb)^2)
+  #         ESS <- sum((Xb - mean(response))^2)
+  #         nu1 <- 1
+  #         nu2 <- length(response)-1
+  #         ftest <- (ESS/nu1)/(RSS/nu2)
+  #       }else{
+  #         X <- apply(X = X, MARGIN = 1, FUN = function(x){x-mean(x)})
+  #         if(is.null(weights)==F){
+  #           X <- w*X
+  #         }
+  #         SQR <- qr(X)
+  #         b <- qr.coef(qr=SQR,y=response)
+  #         Xb <- X%*%b
+  #         RSS <- sum((response - Xb)^2)
+  #         ESS <- sum((Xb - mean(response))^2)
+  #         nu1 <- nalleles-1
+  #         nu2 <- length(response)-nalleles-1
+  #         ftest <- (ESS/nu1)/(RSS/nu2)
+  #       }
+  #     }else if(nalleles > 2){
+  #       X <- as.matrix(haplo$genotypes[hapalleles,unique(ids)])
+  #       freq <- rowSums(X)/(2*haplo$nsamples.in)
+  #       X <- as.matrix(haplo$genotypes[hapalleles,ids])
+  #       if(sum(freq) == 1){
+  #         haporder <- order(rank(freq))
+  #         freq <- freq[haporder]
+  #         freq <- freq[-1]
+  #         X <- X[haporder,]
+  #         X <- X[-1,]
+  #         X <- apply(X = X, MARGIN = 1, FUN = function(x){x-mean(x)})
+  #         if(is.null(weights)==F){
+  #           X <- w*X
+  #         }
+  #         SQR <- qr(X)
+  #         b <- qr.coef(qr=SQR,y=response)
+  #         Xb <- X%*%b
+  #         RSS <- sum((response - Xb)^2)
+  #         ESS <- sum((Xb - mean(response))^2)
+  #         nu1 <- nalleles-1
+  #         nu2 <- length(response)-nalleles-1
+  #         ftest <- (ESS/nu1)/(RSS/nu2)
+  #       }else{
+  #         X <- apply(X = X, MARGIN = 1, FUN = function(x){x-mean(x)})
+  #         if(is.null(weights)==F){
+  #           X <- w*X
+  #         }
+  #         SQR <- qr(X)
+  #         b <- qr.coef(qr=SQR,y=response)
+  #         Xb <- X%*%b
+  #         RSS <- sum((response - Xb)^2)
+  #         ESS <- sum((Xb - mean(response))^2)
+  #         nu1 <- nalleles-1
+  #         nu2 <- length(response)-nalleles-1
+  #         ftest <- (ESS/nu1)/(RSS/nu2)
+  #         
+  #       }
+  #     }
+  #     return(c(nalleles,nu1,nu2,ftest))
+  #   }
+  #   
+  #   #Get unique blocks
+  #   blocks <- unique(data.frame(haplo$block,haplo$chr,haplo$bp1,haplo$bp2,stringsAsFactors = FALSE))
+  #   colnames(blocks) <- c("BLOCK","CHR","BP1","BP2")
+  #   
+  #   #Compute haplotype regression statistics
+  #   a <- mclapply(FUN=ols.FUN,X=blocks$BLOCK,mc.cores = ncores)
+  #   a <- data.frame(matrix(unlist(a), nrow=nrow(blocks), byrow=TRUE))
+  #   
+  #   hapreg <- NULL
+  #   hapreg$BLOCK <- blocks$BLOCK
+  #   hapreg$CHR <- blocks$CHR
+  #   hapreg$BP1 <- blocks$BP1
+  #   hapreg$BP2 <- blocks$BP1
+  #   hapreg$N.ALLELES <- as.integer(a[,1])
+  #   hapreg$F.TEST <- a[,4]
+  #   hapreg$logP <- -1*pf(q = hapreg$F.TEST, df1 = a[,2], df2 = a[,3], lower.tail=FALSE, log.p = TRUE)/log(10)
+  #   hapreg <- data.frame(hapreg,stringsAsFactors = FALSE)
+  # } else {
+  #   stop("Argument type must be 'HapAllele' or 'HapBlock'")
+  # }
   
   
   #Return object
