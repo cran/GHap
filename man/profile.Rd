@@ -8,7 +8,8 @@ Haplotype allele profile
 Given a data.frame of user-defined haplotype allele scores, compute individual profiles.
 }
 \usage{
-ghap.profile(score, haplo, only.active.samples = TRUE, ncores = 1)
+ghap.profile(score, haplo, only.active.samples = TRUE, batchsize = NULL,
+             ncores = 1, verbose = TRUE)
 }
 
 \arguments{
@@ -21,8 +22,14 @@ ghap.profile(score, haplo, only.active.samples = TRUE, ncores = 1)
   \item{only.active.samples}{
     A logical value specifying whether calculations should be reported only for active samples (default = TRUE).
   }
+  \item{batchsize}{
+   A numeric value controlling the number of HapAlleles to be processed at a time (default = nalleles/10).
+  }
   \item{ncores}{
    A numeric value specifying the number of cores to be used in parallel computing (default = 1).
+  }
+  \item{verbose}{
+   A logical value specfying whether log messages should be printed (default = TRUE).
   }
 }
 
@@ -44,7 +51,7 @@ The profile for each individual is calculated as sum(b*(x-c)/s), where x is a ve
 }
 
 \author{
-Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
+Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>\cr
 Marco Milanesi <marco.milanesi.mm@gmail.com>
 }
 
@@ -59,42 +66,63 @@ S. Purcell et al. PLINK: a tool set for whole-genome association and population-
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
 # 
-# # Subset data - randomly select 3000 markers with maf > 0.02
-# maf <- ghap.maf(phase, ncores = 2)
-# set.seed(1988)
-# markers <- sample(phase$marker[maf > 0.02], 3000, replace = FALSE)
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
-# rm(maf,markers)
+# # Load phase data
+# phase <- ghap.loadphase(input.file = "human")
 # 
-# # Generate block coordinates based on windows of 10 markers, sliding 5 marker at a time
-# blocks <- ghap.blockgen(phase, 10, 5, "marker")
+# # Generate blocks of 5 markers sliding 5 markers at a time
+# blocks <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
 # 
-# # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks, batchsize = 100, ncores = 2, freq = 0.05, outfile = "example")
-# 
+# # Haplotyping
+# ghap.haplotyping(phase = phase, blocks = blocks, outfile = "human",
+#                  binary = T, ncores = 1)
+#
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("example.hapsamples", "example.hapalleles", "example.hapgenotypes")
+# haplo <- ghap.loadhaplo(input.file = "human")
+#
+# # Subset common haplotypes in Europeans
+# EUR.ids <- haplo$id[which(haplo$pop \%in\% c("TSI","CEU"))]
+# haplo <- ghap.subsethaplo(haplo,EUR.ids,haplo$allele.in)
+# hapstats <- ghap.hapstats(haplo, ncores = 1)
+# common <- hapstats$TYPE \%in\% c("REGULAR","MAJOR") &
+#  hapstats$FREQ > 0.05 &
+#  hapstats$FREQ < 0.95
+# haplo <- ghap.subsethaplo(haplo,EUR.ids,common)
+# 
+# # Compute relationship matrix
+# K <- ghap.kinship(haplo, ncores = 1)
+# 
+# # Quantitative trait with 50\% heritability
+# # Unbalanced repeated measurements (0 to 30)
+# # Two major haplotypes accounting for 50\% of the genetic variance
+# myseed <- 123456789
+# set.seed(myseed)
+# major <- sample(which(haplo$allele.in == TRUE), size = 2)
+# g2 <- runif(n = 2, min = 0, max = 1)
+# g2 <- (g2/sum(g2))*0.5
+# sim <- ghap.simpheno(haplo, kinship = K, h2 = 0.5, g2 = g2, nrep = 30,
+#                      balanced = FALSE, major = major, seed = myseed)
+# 
+# # Fit model using REML
+# model <- ghap.lmm(fixed = phenotype ~ 1, random = ~ individual,
+#                   covmat = list(individual = K), data = sim$data)
+#
+# # BLUP GWAS
+# gebvs <- model$random$individual
+# Kinv <- ghap.kinv(K)
+# gwas.blup <- ghap.blup(gebvs = gebvs, haplo = haplo,
+#                        ncores = 1, invcov = Kinv)
 # 
 # 
 # ### RUN ###
 # 
-# # Create a score data.frame
-# score <- NULL
-# score$BLOCK <- haplo$block
-# score$CHR <- haplo$chr
-# score$BP1 <- haplo$bp1
-# score$BP2 <- haplo$bp2
-# score$ALLELE <- haplo$allele
-# set.seed(1988)
-# score$SCORE <- rnorm(length(score$ALLELE))
-# score <- data.frame(score,stringsAsFactors = FALSE)
-# 
-# # Compute profiles
-# profile <- ghap.profile(score, haplo, ncores = 2)
+# # Scoring
+# score <- ghap.profile(score = gwas.blup, haplo = haplo, ncores = 1)
+# plot(score$SCORE, model$random$individual); abline(0,1)
 
 }

@@ -1,6 +1,6 @@
-#Function: ghap.gblup
+#Function: ghap.blup
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: calculate GBLUP solution for each haplotype allele
@@ -11,9 +11,10 @@ ghap.blup<-function(
   invcov,
   gebvsweights = NULL,
   haploweights = NULL,
-  nperm = 1,
-  only.active.alleles = TRUE, 
-  ncores = 1
+  only.active.alleles = TRUE,
+  batchsize = NULL,
+  ncores = 1,
+  verbose = TRUE
 ){
   
   #General data check
@@ -52,83 +53,118 @@ ghap.blup<-function(
   names(gebvsweights) <- names(gebvs)
   k <- invcov%*%Diagonal(x=gebvsweights/mean(gebvsweights))%*%gebvs
   
-  #Compute variance and frequencies
-  ncores <- min(c(detectCores(),ncores))
-  varfun <- function(j) return(haploweights[as.character(j)]*var(haplo$genotypes[j,ids]))
-  freqfun <- function(j) return(sum(haplo$genotypes[j,ids])/(2*haplo$nsamples.in))
+  # Get number of cores
   if(Sys.info()["sysname"] == "Windows"){
-    cat("\nParallelization not supported yet under Windows (using a single core).\n")
-    sumvar <- sum(unlist(lapply(X = activealleles, FUN = varfun)))
-    freq <- unlist(lapply(X = activealleles, FUN = freqfun))
+    if(ncores > 1 & verbose == TRUE){
+      cat("\nParallelization not supported yet under Windows (using a single core).")
+    }
+    ncores <- 1
   }else{
-    sumvar <- sum(unlist(mclapply(X=activealleles,FUN = varfun,  mc.cores = ncores)))
-    freq <- unlist(mclapply(X=activealleles,FUN = freqfun,  mc.cores = ncores))
+    ncores <- min(c(detectCores(), ncores))
   }
   
-  #Main BLUP function
+  # Generate lookup table
+  lookup <- rep(NA,times=256)
+  lookup[1:2] <- c(0,1)
+  d <- 10
+  i <- 3
+  while(i <= 256){
+    b <- d + lookup[1:(i-1)]
+    lookup[i:(length(b)+i-1)] <- b
+    i <- i + length(b)
+    d <- d*10
+  }
+  lookup <- sprintf(fmt="%08d", lookup)
+  lookup <- sapply(lookup, function(i){intToUtf8(rev(utf8ToInt(i)))})
+  
+  #Generate batch index
+  if(is.null(batchsize) == TRUE){
+    batchsize <- ceiling(haplo$nalleles.in/10)
+  }
+  if(batchsize > haplo$nalleles.in){
+    batchsize <- haplo$nalleles.in
+  }
+  activealleles <- which(haplo$allele.in)
+  nbatches <- round(haplo$nalleles.in/(batchsize),digits=0) + 1
+  mybatch <- paste("B",1:nbatches,sep="")
+  batch <- rep(mybatch,each=batchsize)
+  batch <- batch[1:haplo$nalleles.in]
+  mybatch <- unique(batch)
+  nbatches <- length(mybatch)
+  
+  #Log message
+  if(verbose == TRUE){
+    cat("Processing ", haplo$nalleles.in, " HapAlleles in ", nbatches, " batches.\n", sep="")
+    cat("Inactive alleles will be ignored.\n")
+  }
+  
+  #Auxiliary functions
+  varfun <- function(j){
+    x <- hap.geno[j,]
+    xname <- rownames(hap.geno)[j]
+    out <- haploweights[xname]*var(x)
+    return(out)
+  }
+  freqfun <- function(j){
+    return(sum(hap.geno[j,])/(2*haplo$nsamples.in))
+  }
   gblup.FUN <- function(j) {
-    x <- haplo$genotypes[j, ids]
+    x <- hap.geno[j,]
+    xname <- rownames(hap.geno)[j]
     cent <- mean(x)
     x <- x - cent
-    b <- sum(haploweights[as.character(j)]*x*k)
-    b <- b/sumvar
+    b <- sum(haploweights[xname]*x*k)
     varxb <- var(x*b)
     return(c(b,varxb,cent))
   }
   
-  #Compute effects
-  if(Sys.info()["sysname"] == "Windows"){
-    cat("\nParallelization not supported yet under Windows (using a single core).\n")
-    a <- lapply(FUN = gblup.FUN, X = activealleles)
-  }else{
-    a <- mclapply(FUN = gblup.FUN, X = activealleles, mc.cores = ncores)
-  }
-  a <- data.frame(matrix(unlist(a), nrow=haplo$nalleles.in, byrow=TRUE))
-  
-  #Output data
+  #Iterate batches
   hapreg <- NULL
   hapreg$BLOCK <- haplo$block[haplo$allele.in]
   hapreg$CHR <- haplo$chr[haplo$allele.in]
   hapreg$BP1 <- haplo$bp1[haplo$allele.in]
   hapreg$BP2 <- haplo$bp2[haplo$allele.in]
   hapreg$ALLELE <- haplo$allele[haplo$allele.in]
-  hapreg$SCORE <- a[,1]
-  hapreg$FREQ <- freq
-  hapreg$VAR <- a[,2]
-  hapreg$pVAR <- hapreg$VAR/sum(hapreg$VAR)
-  hapreg$CENTER <- a[,3]
-  hapreg$SCALE <- 1
-  
-  #Permutation test (optional)
-  if(nperm > 1){
-    cat("A permutation procedure with",nperm,"randomizations will be performed.\n")
-    #Re-define BLUP function to randomize effects
-    #Main BLUP function
-    gblup.FUN <- function(j) {
-      x <- haplo$genotypes[j, ids]
-      x <- x - mean(x)
-      b <- sum(haploweights[as.character(j)]*x*k)
-      b <- b/sumvar
-      return(b)
+  hapreg$SCORE <- rep(NA, times=haplo$nalleles.in)
+  hapreg$FREQ <- rep(NA, times=haplo$nalleles.in)
+  hapreg$VAR <- rep(NA, times=haplo$nalleles.in)
+  hapreg$pVAR <- rep(NA, times=haplo$nalleles.in)
+  hapreg$CENTER <- rep(NA, times=haplo$nalleles.in)
+  hapreg$SCALE <- rep(NA, times=haplo$nalleles.in)
+  sumalleles <- 0
+  sumvar <- 0
+  for(i in 1:nbatches){
+    idx <- which(batch == mybatch[i])
+    slice <- activealleles[idx]
+    hap.geno <- ghap.hslice(haplo = haplo, ids = ids, alleles = slice,
+                            index = TRUE, lookup = lookup, ncores = ncores)
+    if(Sys.info()["sysname"] == "Windows"){
+      sumvar <- sumvar + sum(unlist(lapply(X = 1:nrow(hap.geno), FUN = varfun)))
+      hapreg$FREQ[idx] <- unlist(lapply(X = 1:nrow(hap.geno), FUN = freqfun))
+      a <- unlist(lapply(X = 1:nrow(hap.geno), FUN = gblup.FUN))
+      a <- data.frame(matrix(a, nrow=nrow(hap.geno), byrow=TRUE))
+      hapreg$SCORE[idx] <- a[,1]
+      hapreg$VAR[idx] <- a[,2]
+      hapreg$CENTER[idx] <- a[,3]
+      hapreg$SCALE[idx] <- 1
+    }else{
+      sumvar <- sumvar + sum(unlist(mclapply(X = 1:nrow(hap.geno), FUN = varfun, mc.cores = ncores)))
+      hapreg$FREQ[idx] <- unlist(mclapply(X = 1:nrow(hap.geno), FUN = freqfun, mc.cores = ncores))
+      a <- unlist(mclapply(X = 1:nrow(hap.geno), FUN = gblup.FUN, mc.cores = ncores))
+      a <- data.frame(matrix(a, nrow=nrow(hap.geno), byrow=TRUE))
+      hapreg$SCORE[idx] <- a[,1]
+      hapreg$VAR[idx] <- a[,2]
+      hapreg$CENTER[idx] <- a[,3]
+      hapreg$SCALE[idx] <- 1
     }
-    hapreg$P <- 0
-    #Permutation iteration
-    for(i in 1:nperm){
-      cat("Permutation number:",i,"\r")
-      k <- sample(k,size=length(k),replace=FALSE)
-      if(Sys.info()["sysname"] == "Windows"){
-        cat("\nParallelization not supported yet under Windows (using a single core).\n")
-        a <- lapply(FUN = gblup.FUN, X = activealleles)
-      }else{
-        a <- mclapply(FUN = gblup.FUN, X = activealleles, mc.cores = ncores)
-      }
-      a <- unlist(a)
-      a <- as.numeric(abs(max(a)) > abs(hapreg$SCORE))
-      hapreg$P <- hapreg$P + a
+    if(verbose == TRUE){
+      sumalleles <- sumalleles + length(idx)
+      cat(sumalleles, "HapAlleles processed.\r")
     }
-    hapreg$P <- hapreg$P/nperm
-    hapreg$P[hapreg$P == 0] <- 1/nperm
   }
+  hapreg$SCORE <- hapreg$SCORE/sumvar
+  hapreg$VAR <- hapreg$VAR*(1/sumvar)^2
+  hapreg$pVAR <- hapreg$VAR/sum(hapreg$VAR)
   
   #Return results
   hapreg <- data.frame(hapreg, stringsAsFactors = FALSE)

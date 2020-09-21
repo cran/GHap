@@ -1,19 +1,20 @@
 ---
-title: "The **GHap** Package (Version 1.2.2)"
-author: "Yuri Tani Utsunomiya and Marco Milanesi"
-date: "18 February 2017"
+title: "The **GHap** Package (Version 2.0.0)"
+author: "Yuri Tani Utsunomiya, Marco Milanesi and Mario Barbato"
+date: "11 Sep 2020"
 output:
   pdf_document:
     highlight: haddock
     toc: yes
   html_document: default
+header-includes: \usepackage{float}
 ---
 
 \pagebreak
 
 ##Abstract
 
-The **GHap** R package was designed to call haplotypes from phased SNP data. Given user-defined haplotype blocks (HapBlock), the package identifies the different haplotype alleles (HapAllele) present in the data and scores sample haplotype allele genotypes (HapGenotype) based on copy number (i.e., 0, 1 or 2 copies). **GHap** is an acronym for **G**enome-wide **Hap**lotyping, and is pronounced **G**-**Hap**, not gap (although it is intended to fill the gap of haplotype analyses).
+The **GHap** R package was designed to call haplotypes from phased SNP data. Given user-defined haplotype blocks (HapBlock), the package identifies the different haplotype alleles (HapAllele) present in the data and scores sample haplotype allele genotypes (HapGenotype) based on copy number (i.e., 0, 1 or 2 copies). **GHap** is an acronym for **G**enome-wide **Hap**lotyping, and is pronounced **G**-**Hap**, not gap (although it is intended to fill the gap of haplotype analyses). Apart from its core functionality, the package also supports phenotype-haplotype association analyses as well as machine learning-based predictions of local and global ancestry.
 
 \pagebreak
 
@@ -24,84 +25,49 @@ Example input files can be created using the command:
 ```r
 # Copy the example data in the current working directory
 library(GHap)
-ghap.makefile()
+exfiles <- ghap.makefile()
+file.copy(from = exfiles, to = "./")
 ```
 
 The dataset comprises genotypes from the International HapMap Project Phase 3 (The International HapMap 3 Consortium, 2010), which includes 1,011 subjects (from 11 populations) and 20,000 SNPs (randomly sampled from chromosome 2) mapped to the NCBI build 36 (hg18) assembly.
 
+Since version 2.0.0, GHap adopted binary input files for both improved performance and economic data storage. In order to compress the data into a binary file, the user can run:
+
+```r
+# Compress phase data
+ghap.compress(input.file = "human", out.file = "human")
+```
+
 The `ghap.loadphase()` function is responsible for loading phased chromosomes from an input file and converting them into a native **GHap.phase** object. A detailed describtion of this object can be found in the documentation of the function. To load the example data in the package we can run:
 
 ```r
-#Load haplotype object
-phase <- ghap.loadphase(
-  samples.file = "human.samples",
-  markers.file = "human.markers", 
-  phase.file = "human.phase"
-)
+#Load phase object
+phase <- ghap.loadphase("human")
 #   Reading in marker map information... Done.
-#   A total of 20000 markers were found for chromosome 2.
+#   A total of 20000 markers were found in 1 chromosomes.
 #   Reading in sample information... Done.
 #   A total of 1011 individuals were found in 11 populations.
-#   Reading in phased genotypes... (may take a few minutes for large datasets)
-#   Your GHap.phase object was successfully loaded without apparent errors.
+#   Checking integrity of phased genotypes... Done.
+#   Your GHap.phase object was successfully created without apparent errors.
 ```
 
-The current version of the package only supports phased data of one chromosome at a time. However, once haplotypes have been called, multiple chromosomes can be loaded.
+Although the example data contains data for a single chromosome, the current version of the package supports multiple chromosomes.
 
 \pagebreak
 
-##Tutorial 2 - Subsetting, exporting and merging phased objects
+##Tutorial 2 - Subsetting phased objects
 
 The `ghap.subsetphase()` function can take any combination of markers and individuals and subset the **GHap.phase** object. This is achieved by setting undesired markers and individuals to **FALSE**. Inactivated individuals and markers are then ignored by all other functions taking a **GHap.phase** object as input.
 
-For instance, we know that markers with low polymorphic information content may result in rare HapAlleles. If downstream analyses do not benefit from rare HapAlleles (e.g., haplotype association), it may be beneficial to prune these markers out prior to haplotyping. The code below shows how to subset markers with a minor allele frequency of at least 5%:
+For instance, we know that markers with low polymorphic information content may result in rare HapAlleles. If downstream analyses do not benefit from rare HapAlleles (e.g., haplotype association), it may be advantageous to prune these markers out prior to haplotyping. The code below shows how to subset markers with a minor allele frequency of at least 5%:
 
 ```r
 # Subset data - markers with maf > 0.05
-maf <- ghap.maf(phase, ncores = 2)
-markers <- phase$marker[maf > 0.05]
+maf <- ghap.freq(phase, type="maf", ncores = 1)
+markers <- names(maf)[which(maf > 0.05)]
 phase <- ghap.subsetphase(phase, unique(phase$id), markers)
 #   Subsetting 1011 individuals and 17267 markers... Done.
 #   Final data contains 1011 individuals and 17267 markers.
-```
-
-**GHap.phase** objects can also be exported to text files:
-
-```r
-# Output data
-ghap.outphase(phase, "example")
-#   Preparing example.markers... Done.
-#   Preparing example.samples... Done.
-#   Preparing example.phase... Done.
-```
-
-It is also possible to merge two distinct **GHap.phase** objects with the `ghap.merge` function. There are three possible merging tasks:
-
-1 - Objects 1 and 2 have the same set of markers but different individuals
-
-2 - Objects 1 and 2 have different sets of markers (with potential overlaps) but the same individuals
-
-3 - Objects 1 and 2 have different sets of markers and individuals (with potential overlaps)
-
-Currently, **GHap** only supports task 1. This is because phase information may not derive from a consensus marker panel in task 2, and task 3 has the additional problem of forcing missing genotypes.
-
-```r
-# Select ASW and CEU individuals
-ASW.ids <- unique(phase$id[phase$pop=="ASW"])
-CEU.ids <- unique(phase$id[phase$pop=="CEU"])
- 
-# Subset data 
-phase.ASW <- ghap.subsetphase(phase, ASW.ids, markers)
-#   Subsetting 63 individuals and 17267 markers... Done.
-#   Final data contains 63 individuals and 17267 markers.
-phase.CEU <- ghap.subsetphase(phase, CEU.ids, markers)
-#   Subsetting 117 individuals and 17267 markers... Done.
-#   Final data contains 117 individuals and 17267 markers.
- 
-# Merge phase.ASW and phase.CEU
-phase.merge <- ghap.mergephase(phase.ASW, phase.CEU)
-#   Creating the new GHap.phase object... Done.
-#   Your GHap.phase object was successfully merged without apparent errors.
 ```
 
 \pagebreak
@@ -122,10 +88,10 @@ By default all blocks are constrained to a minimum of two markers. This behaviou
 
 ```r
 # Generate matrix of haplotype genotypes
-ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+ghap.haplotyping(phase, blocks.mkr, outfile = "human", binary = TRUE, ncores = 1)
 #   Processing 3453 blocks in:
-#   1 batches of 53
-#   34 batches of 100
+#   1 batches of 339
+#   9 batches of 346
 #   3453 blocks written to file
 ```
 By default all HapAlleles are included in the output. If intended, the user can exclude the minor HapAllele by setting the *drop.minor* argument to **TRUE**. Additionally, the *freq* argument allows for exclusion of HapAlleles outside of a specified frequency range. Control of memory usage and process parallelization is achieved through the arguments *batchsize* and *ncores*.
@@ -138,16 +104,16 @@ After HapAlleles have been scored, the data can be loaded into R using the `ghap
 
 ```r
 # Load haplotype genotypes
-haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+haplo <- ghap.loadhaplo("human")
 #   Reading in haplotype allele information... Done.
 #   A total of 60002 haplotype alleles were found.
 #   Reading in sample information... Done.
-#   A total of 1000 individuals were found in 1 populations.
-#   Reading in haplotype genotypes... (may take a few minutes for large datasets)
+#   A total of 1011 individuals were found in 11 populations.
+#   Checking integrity of haplotype genotypes... Done.
 #   Your GHap.haplo object was successfully loaded without apparent errors.
 ```
 
-Similar to the **GHap.phase** object, the user can also subset, merge and export **GHap.haplo** objects. For instance:
+Similar to the **GHap.phase** object, the user can also subset **GHap.haplo** objects. For instance:
 
 ```r
 # Randomly select 500 individuals
@@ -158,11 +124,10 @@ haplo.sub <- ghap.subsethaplo(haplo,ids,haplo$allele.in)
 #   Subsetting 500 individuals and 60002 haplotype alleles... Done.
 #   Final data contains 500 individuals and 60002 haplotype alleles.
 
-# Output new GHap.haplo object
-ghap.outhaplo(haplo = haplo.sub, outfile = "humansub")
-#   Preparing humansub.hapsamples... Done.
-#   Preparing humansub.hapalleles... Done.
-#   Preparing humansub.hapgenotypes... Done.
+# Restore selection of the entire data
+haplo.sub <- ghap.subsethaplo(haplo,unique(haplo$id),rep(TRUE,times=haplo$nalleles))
+#   Subsetting 1011 individuals and 60002 haplotype alleles... Done.
+#   Final data contains 1011 individuals and 60002 haplotype alleles.
 ```
 \pagebreak
 
@@ -171,7 +136,10 @@ ghap.outhaplo(haplo = haplo.sub, outfile = "humansub")
 For each HapAllele, the `ghap.hapstats` function retrieves absolute and relative frequencies, expected and observed number of homozygotes, and different tests for deficit of homozygotes in comparison to Hardy-Weinberg Equilibrium (HWE) expectations.
 
 ```r
-hapstats <- ghap.hapstats(haplo, ncores = 2)
+hapstats <- ghap.hapstats(haplo, ncores = 1)
+#   Processing 60002 HapAlleles in 10 batches.
+#   Inactive alleles will be ignored.
+#   60002 alleles processed
 str(hapstats)
 #   'data.frame':	60002 obs. of  14 variables:
 #    $ BLOCK   : chr  "CHR2_B1" "CHR2_B1" "CHR2_B1" "CHR2_B1" ...
@@ -207,12 +175,13 @@ Categories "SINGLETON", "MINOR" and "MAJOR" only apply to blocks where frequenci
 The `ghap.blockstats` function summarizes HapAllele statistics per block and retrieves the expected heterozygosity and the number of alleles per HapBlock. For instance:
 
 ```r
-blockstats <- ghap.blockstats(hapstats, ncores = 2)
+blockstats <- ghap.blockstats(hapstats, ncores = 1)
 head(blockstats,n=2)
 #        BLOCK CHR   BP1    BP2     EXP.H N.ALLELES
 #   1  CHR2_B1   2 18228  75360 0.5128683        10
 #   11 CHR2_B2   2 90190 109437 0.7139595        15
 ```
+
 Notice that calculation of expected heterozygosity will not be reliable when HapAlleles are prunned out by frequency during haplotyping. Therefore, the function will return NA for blocks where HapAllele frequencies do not sum to unity. Also, when the dataset contains multiple populations the expected heterozygosity and the number of alleles will be very high.
 
 \pagebreak
@@ -222,14 +191,14 @@ Notice that calculation of expected heterozygosity will not be reliable when Hap
 The example below computes a kinship matrix from HapGenotypes and plots the first two eigenvectors of a principal components analysis of this matrix. Notice that absent, singleton and minor alleles should be excluded from computations.
 
 ```r
-# Subset major and regular alleles
-haplo <- ghap.subsethaplo(haplo,haplo$id,hapstats$TYPE %in% c("REGULAR","MAJOR"))
+# Exclude minor alleles and singletons
+haplo <- ghap.subsethaplo(haplo,haplo$id, hapstats$TYPE %in% c("REGULAR","MAJOR"))
 #   Subsetting 1011 individuals and 56572 haplotype alleles... Done.
 #   Final data contains 1011 individuals and 56572 haplotype alleles.
 
 # Compute Kinship matrix
-K <- ghap.kinship(haplo, batchsize = 100)
-#   Processing 56572 HapAlleles in 566 batches.
+K <- ghap.kinship(haplo, ncores = 1)
+#   Processing 56572 HapAlleles in 10 batches.
 #   Inactive alleles will be ignored.
 #   Preparing 1011 x 1011 kinship matrix.
 #   56572 HapAlleles processed.
@@ -257,20 +226,20 @@ haplo <- ghap.subsethaplo(haplo,haplo$id,rep(TRUE,times=haplo$nalleles))
 CHB.ids <- haplo$id[which(haplo$pop=="CHB")]
 CEU.ids <- haplo$id[which(haplo$pop=="CEU")]
 haplo <- ghap.subsethaplo(haplo,CHB.ids,haplo$allele.in)
-CHB.hapstats <- ghap.hapstats(haplo,ncores = 2)
+CHB.hapstats <- ghap.hapstats(haplo,ncores = 1)
 haplo <- ghap.subsethaplo(haplo,CEU.ids,haplo$allele.in)
-CEU.hapstats <- ghap.hapstats(haplo,ncores = 2)
+CEU.hapstats <- ghap.hapstats(haplo,ncores = 1)
 haplo <- ghap.subsethaplo(haplo,c(CHB.ids,CEU.ids),haplo$allele.in)
-TOT.hapstats <- ghap.hapstats(haplo,ncores = 2)
+TOT.hapstats <- ghap.hapstats(haplo,ncores = 1)
 haplo <- ghap.subsethaplo(haplo,haplo$id,rep(TRUE,times=haplo$nalleles))
 
 # Compute haplotype block statistics for each group
-CHB.blockstats <- ghap.blockstats(CHB.hapstats, ncores = 2)
-CEU.blockstats <- ghap.blockstats(CEU.hapstats, ncores = 2)
-TOT.blockstats <- ghap.blockstats(TOT.hapstats, ncores = 2)
+CHB.blockstats <- ghap.blockstats(CHB.hapstats, ncores = 1)
+CEU.blockstats <- ghap.blockstats(CEU.hapstats, ncores = 1)
+TOT.blockstats <- ghap.blockstats(TOT.hapstats, ncores = 1)
 
 # Calculate Fst
-fst<-ghap.fst(CHB.blockstats, CEU.blockstats, TOT.blockstats)
+fst <- ghap.fst(CHB.blockstats, CEU.blockstats, TOT.blockstats)
 
 # Plot results
 top.fst <- fst[fst$FST == max(fst$FST, na.rm=TRUE),]
@@ -293,41 +262,135 @@ Ideally, similar to the case of HapAllele and HapBlock statistics, the $F_{ST}$ 
 
 ##Tutorial 8 - Haplotype ancestry
 
-**GHap** offers a way to calculate the probability that a given HapAllele from a tested population was inherited from one of the tested parental populations. For instance, using CEU and YRI as proxy parental populations for ASW, we could assign HapAlleles in ASW to CEU or YRI using the following code:
+The package provides three methods for the prediction of haplotype ancestry:
+
+**GHap Unsupervised**. This method does not require a reference sample. It is based on a combination of K-means and heuristics, and is divided into three steps. In the first one, a random sample of seeding markers (default value of nmarkers = 5000) is used to group all 2\*nsamples haplotypes in a user-specified number of clusters (default value of K = 2). Then, for each interrogated block, prototype alleles (i.e., centroids) are built for every cluster using the mean of observed haplotypes initially assigned to that cluster. Finally, each tested haplotype is assigned to the nearest centroid (i.e., with the smallest Euclidean distance). K-means is internally ran through the `kmeans` function in the **stats** package.
+
+**GHap Supervised**. This method is similar to the 'unsupervised' method, only replacing the K-means clutering step by user-defined clusters of reference samples.
+
+**Support Vector Machines (SVM)**. This method performs predictions using Support Vector Machines (SVM) together with a Gaussian Radial Basis Function (RBF) kernel. The user is required to specify a reference sample of individuals with known ancestry labels. The reference sample is then used to train the SVM model, which is parameterized by the C constant of the regularization term in the Lagrange formulation (default cost = 1) and the gamma parameter (default gamma = 1/blocksize) of the RBF kernel. Fitting of SVM is performed internally by the `svm` function from the **e1071** package. Test samples have the ancestries of their HapAlleles predicted using the fitted SVM.
+
+In all three methods, the classifiers assume exactly one ancestry per HapBlock, such that segments encompassing breakpoints are miss-classified as pertaining to a single ancestral origin, as opposed to a recombinant mixture of hybrid ancestries. When any of the three methods is ran with overlapping HapBlocks, the user should use the `ghap.ancsmooth` function to convert HapAllele classifications into ancestry tracks. In this case, the smoothing function interrogates the ancestry of each overlapped segment by majority voting of all blocks containing it. After the ancestry of all segments have been resolved, contiguous sites sharing the same classification are converted into runs or segments of ancestry, which comprise the final output of an ancestry analysis. The following lines of code show an analysis of the HapMap3 data considering the three major ancestry components in human populations: the continental blocks of Africa, Europe and Asia.
 
 ```r
-# Compute haplotype allele statistics for each group
-haplo <- ghap.subsethaplo(haplo,haplo$id,rep(TRUE,times=haplo$nalleles))
-ASW.ids <- unique(haplo$id[haplo$pop=="ASW"])
-YRI.ids <- unique(haplo$id[haplo$pop=="YRI"])
-CEU.ids <- unique(haplo$id[haplo$pop=="CEU"])
-haplo <- ghap.subsethaplo(haplo,YRI.ids,haplo$allele.in)
-YRI.hapstats <- ghap.hapstats(haplo,ncores = 2)
-haplo <- ghap.subsethaplo(haplo,CEU.ids,haplo$allele.in)
-CEU.hapstats <- ghap.hapstats(haplo,ncores = 2)
-haplo <- ghap.subsethaplo(haplo,ASW.ids,haplo$allele.in)
-ASW.hapstats <- ghap.hapstats(haplo,ncores = 2)
-haplo <- ghap.subsethaplo(haplo,haplo$id,rep(TRUE,times=haplo$nalleles))
+# Calculate marker density
+mrkdist <- diff(phase$bp)
+mrkdist <- mrkdist[which(mrkdist > 0)]
+density <- mean(mrkdist)
 
-# Find haplotype origin
-# ASW is the test population. YRI and CEU are used as parental populations
-# The frequency threshold is set to 0.05 and the probability of assignment to 0.60
-ancestry <- ghap.ancestral(ASW.hapstats, YRI.hapstats, CEU.hapstats, 0.05, 0.60)
-ancestry <- ancestry[ancestry$FREQ.TEST > 0,]
-str(ancestry)
-#   'data.frame':	38561 obs. of  11 variables:
-#    $ BLOCK       : chr  "CHR2_B1" "CHR2_B1" "CHR2_B1" "CHR2_B1" ...
-#    $ CHR         : chr  "2" "2" "2" "2" ...
-#    $ BP1         : num  18228 18228 18228 18228 18228 ...
-#    $ BP2         : num  75360 75360 75360 75360 75360 ...
-#    $ ALLELE      : chr  "ATAAC" "ATAGC" "GGAAC" "GGAGC" ...
-#    $ FREQ.TEST   : num  0.00794 0.05556 0.01587 0.18254 0.07143 ...
-#    $ FREQ.PARENT1: num  0 0.087 0 0.1435 0.0783 ...
-#    $ FREQ.PARENT2: num  0 0.00855 0 0 0 ...
-#    $ PROB.PARENT1: num  0 0.911 0 1 1 ...
-#    $ PROB.PARENT2: num  0 0 0 0 0 ...
-#    $ ORIGIN      : chr  "UNK" "PARENT1" "UNK" "PARENT1" ...
+# Generate blocks for admixture events up to g = 10 generations in the past
+# Assuming mean block size in Morgans of 1/(2*g)
+# Approximating 1 Morgan ~ 100 Mbp
+g <- 10
+window <- (100e+6)/(2*g)
+window <- ceiling(window/density)
+step <- ceiling(window/4)
+blocks <- ghap.blockgen(phase, windowsize = window, slide = step, unit = "marker")
+
+# Unsupervised analysis
+prototypes1 <- ghap.anctrain(phase = phase, K = 3, ncores = 1)
+hapadmix1 <- ghap.anctest(phase = phase, blocks = blocks, prototypes = prototypes1,
+                         test = unique(phase$id), ncores = 1)
+anctracks1 <- ghap.ancsmooth(phase = phase, admix = hapadmix1, ncores = 1)
+
+# User-defined labels
+pops <- phase$pop
+labels <- pops
+labels[which(labels %in% c("CEU","TSI"))] <- "Europe"
+labels[which(labels %in% c("CHB","JPT","CHD"))] <- "Asia"
+labels[which(labels %in% c("YRI","LWK"))] <- "Africa"
+labels[which(labels %in% c("MKK","GIH","ASW","MEX"))] <- "Test"
+phase$pop <- labels
+train <- unique(phase$id[which(phase$pop != "Test")])
+test <- unique(phase$id)
+
+# Supervised analysis with default parameters
+prototypes2 <- ghap.anctrain(phase = phase, train = train,
+                             method = "supervised", ncores = 1)
+hapadmix2 <- ghap.anctest(phase = phase, blocks = blocks, prototypes = prototypes2,
+                          test = unique(phase$id), ncores = 1)
+phase$pop <- pops
+anctracks2 <- ghap.ancsmooth(phase = phase, admix = hapadmix2, ncores = 1)
+
+# SVM analysis with default parameters
+phase$pop <- labels
+hapadmix3 <- ghap.ancsvm(phase = phase, blocks = blocks, test = test,
+                         train = train, ncores = 1)
+phase$pop <- pops
+anctracks3 <- ghap.ancsmooth(phase = phase, admix = hapadmix3, ncores = 1)
+
+# List of population orders to plot
+pop.order <- vector("list",5)
+names(pop.order) <- c("Africa","Europe","East Asia","S. Asia","America")
+pop.order[[1]] <- c("YRI","LWK","MKK")
+pop.order[[2]] <- c("CEU","TSI")
+pop.order[[3]] <- c("CHB","JPT","CHD")
+pop.order[[4]] <- "GIH"
+pop.order[[5]] <- c("ASW","MEX")
+
+# Plot results
+ghap.ancplot(ancsmooth = anctracks1, pop.order = pop.order, use.unk = FALSE)
+ghap.ancplot(ancsmooth = anctracks2, pop.order = pop.order, use.unk = FALSE)
+ghap.ancplot(ancsmooth = anctracks3, pop.order = pop.order, use.unk = FALSE)
 ```
+
+It is also possible to summarize average ancestries per marker for a given group of individuals using the `ghap.ancmark` function. This is useful to screen chromosomes for loci that substantially deviate from the average ancestry across the genome.
+
+```r
+# Plot figures side by side
+par(mfrow=c(3,1))
+
+# Plot unsupervised results
+ancmark1 <- ghap.ancmark(phase = phase, ancsmooth = anctracks1,
+                         ids = unique(phase$id[which(phase$pop == "MKK")]))
+plot(ancmark1$BP/1e+6, ancmark1$K1, ylim = c(0,100), las=1, type="l", col="blue",
+     xlab = "Chromosome 2 (Mbp)", ylab = "Ancestry (%)", main = "GHap unsupervised")
+points(ancmark1$BP/1e+6, ancmark1$K2, type="l", col="red")
+points(ancmark1$BP/1e+6, ancmark1$K3, type="l", col="green")
+points(ancmark1$BP/1e+6, ancmark1$UNK, type="l", col="grey")
+
+# Plot unsupervised results
+ancmark2 <- ghap.ancmark(phase = phase, ancsmooth = anctracks2,
+                         ids = unique(phase$id[which(phase$pop == "MKK")]))
+plot(ancmark2$BP/1e+6, ancmark2$Africa, ylim = c(0,100), las=1, type="l", col="blue",
+     xlab = "Chromosome 2 (Mbp)", ylab = "Ancestry (%)", main = "GHap supervised")
+points(ancmark2$BP/1e+6, ancmark2$Asia, type="l", col="red")
+points(ancmark2$BP/1e+6, ancmark2$Europe, type="l", col="green")
+points(ancmark2$BP/1e+6, ancmark2$UNK, type="l", col="grey")
+
+# Plot SVM results
+ancmark3 <- ghap.ancmark(phase = phase, ancsmooth = anctracks3,
+                         ids = unique(phase$id[which(phase$pop == "MKK")]))
+plot(ancmark3$BP/1e+6, ancmark3$Africa, ylim = c(0,100), las=1, type="l", col="blue",
+     xlab = "Chromosome 2 (Mbp)", ylab = "Ancestry (%)", main = "SVM")
+points(ancmark3$BP/1e+6, ancmark3$Asia, type="l", col="red")
+points(ancmark3$BP/1e+6, ancmark3$Europe, type="l", col="green")
+points(ancmark3$BP/1e+6, ancmark3$UNK, type="l", col="grey")
+```
+
+Individual ancestry tracks can be visualized with `ghap.karyoplot` to check carrier status of segments of interest.
+
+```r
+# Plot ancestry tracks
+ghap.karyoplot(ancsmooth = anctracks1, ids = "NA19835",
+               chr.line = 11, plot.line = 50, las=1)
+ghap.karyoplot(ancsmooth = anctracks2, ids = "NA19835",
+               chr.line = 11, plot.line = 50, las=1)
+ghap.karyoplot(ancsmooth = anctracks3, ids = "NA19835",
+               chr.line = 11, plot.line = 50, las=1)
+```
+
+Another useful feature is the possibility of exporting ancestry track data to PLINK for admixture mapping. The `ghap.anc2plink` function allows the user to count the number of alleles of a given ancestry at each marker and export a genome-wide matrix in either plain text or PLINK binary format (Purcell et al., 2007; Chang et al., 2015). In the latter case, bed/bim/fam files are generated, where ancestry counts 0, 1 and 2 are recoded as NN, NH and HH genotypes (N = NULL and H = haplotype allele), as if ancestry statuses were bi-alelic markers. This coding scheme is acceptable for any given analysis relying on genotype counts, as long as the user specifies that the analysis should be done using character H as the reference for counts.
+
+```r
+# Output ancestry counts
+phase <- ghap.subsetphase(phase = phase,
+                          ids = unique(phase$id[which(phase$pop == "MEX")]),
+                          markers = phase$marker)
+ghap.anc2plink(phase = phase, ancsmooth = anctracks2, ancestry = "Africa",
+               outfile = "mex_africa", ncores = 1, batchsize = 1000)
+```
+
 \pagebreak
 
 ##Tutorial 9 - Linear mixed model analysis
@@ -342,23 +405,23 @@ In the example below we simulate a quantitative trait in Europeans with 50% heri
 
 ```r
 # Subset common haplotypes in Europeans
-EUR.ids <- haplo$id[haplo$pop %in% c("TSI","CEU")]
-haplo <- ghap.subsethaplo(haplo,EUR.ids,rep(TRUE,times=haplo$nalleles))
-hapstats <- ghap.hapstats(haplo, ncores = 2)
+EUR.ids <- haplo$id[which(haplo$pop %in% c("TSI","CEU"))]
+haplo <- ghap.subsethaplo(haplo,EUR.ids,haplo$allele.in)
+hapstats <- ghap.hapstats(haplo, ncores = 1)
 common <- hapstats$TYPE %in% c("REGULAR","MAJOR") &
  hapstats$FREQ > 0.05 &
  hapstats$FREQ < 0.95
 haplo <- ghap.subsethaplo(haplo,EUR.ids,common)
 
 #Compute relationship matrix
-K <- ghap.kinship(haplo, batchsize = 100)
+K <- ghap.kinship(haplo, ncores = 1)
 
 # Quantitative trait with 50% heritability
 # Unbalanced repeated measurements (0 to 30)
 # Two major haplotypes accounting for 50% of the genetic variance
 myseed <- 123456789
 set.seed(myseed)
-major <- sample(which(haplo$allele.in == TRUE),size = 2)
+major <- sample(which(haplo$allele.in == TRUE), size = 2)
 g2 <- runif(n = 2, min = 0, max = 1)
 g2 <- (g2/sum(g2))*0.5
 sim <- ghap.simpheno(haplo, kinship = K, h2 = 0.5, g2 = g2, nrep = 30,
@@ -385,7 +448,7 @@ The `ghap.assoc()` function regresses a response variable on one HapAllele at a 
 ```r
 #HapAllele GWAS using GEBVs as response
 pheno <- model$random$individual
-gwas1 <- ghap.assoc(response = pheno, haplo = haplo, ncores = 4)
+gwas1 <- ghap.assoc(response = pheno, haplo = haplo, ncores = 1)
 
 #HapAllele GWAS using GEBVs as response
 #Weight observations by number of repeated measurements
@@ -393,12 +456,12 @@ pheno <- model$random$individual
 w <- table(sim$data$individual)
 w <- w + mean(w)
 w <- w[names(pheno)]
-gwas2 <- ghap.assoc(response = pheno, haplo = haplo, ncores = 4, weights = w)
+gwas2 <- ghap.assoc(response = pheno, haplo = haplo, ncores = 1, weights = w)
 
 #HapAllele GWAS using residuals as response
 pheno <- model$residuals
 names(pheno) <- sim$data$individual
-gwas3 <- ghap.assoc(response = pheno, haplo = haplo, ncores = 4)
+gwas3 <- ghap.assoc(response = pheno, haplo = haplo, ncores = 1)
 
 #Plot results
 plot(gwas1$BP1/1e+6,gwas1$logP,pch=20,col="darkgreen",ylim=c(0,20),
@@ -426,7 +489,7 @@ gebvsw <- gebvsw + mean(gebvsw)
 gebvsw <- gebvsw[names(gebvs)]
 Kinv <- ghap.kinv(K)
 gwas.blup <- ghap.blup(gebvs = gebvs, haplo = haplo, gebvsweights = gebvsw,
-                       ncores = 4, invcov = Kinv)
+                       ncores = 1, invcov = Kinv)
 plot(gwas.blup$BP1/1e+6,gwas.blup$pVAR*100,pch=20,
      xlab="Position (in Mb)",ylab="Variance explained (%)")
 abline(v=haplo$bp1[major]/1e+6)
@@ -435,7 +498,7 @@ abline(v=haplo$bp1[major]/1e+6)
 w <- gwas.blup$VAR*nrow(gwas.blup)
 K2 <- ghap.kinship(haplo=haplo,weights = w)
 Kinv2 <- ghap.kinv(K2)
-gwas.blup2 <- ghap.blup(gebvs = gebvs, haplo = haplo, invcov = Kinv2, ncores = 2,
+gwas.blup2 <- ghap.blup(gebvs = gebvs, haplo = haplo, invcov = Kinv2, ncores = 1,
                        gebvsweights = gebvsw, haploweights = w)
 plot(gwas.blup2$BP1/1e+6,gwas.blup2$pVAR*100,pch=20,
      xlab="Position (in Mb)",ylab="Variance explained (%)")
@@ -451,7 +514,7 @@ The profile for each individual is calculated as:
 
 $$\sum_{i=1}^{m}(h_ia_i)$$
 
-where relative to HapAllele $i$, $h_i$ is the number of copies and $a_i$ is a user-defined score. By default, if scores are provided for only a subset of the HapAlleles, the missing alleles scores will be set to zero. This function has the same spirit as the profiling routine implemented in the score option in PLINK (Purcell et al., 2007; Chang et al., 2015). This function can be useful for analyses involving cross-validation of genomic predictions based on BLUP solutions of HapAllele effects or scoring admixture proportions from the output of `ghap.ancestral()`. Below is an example using simulated scores from a normal distribution:
+where relative to HapAllele $i$, $h_i$ is the number of copies and $a_i$ is a user-defined score. By default, if scores are provided for only a subset of the HapAlleles, the missing alleles scores will be set to zero. This function has the same spirit as the profiling routine implemented in the score option in PLINK (Purcell et al., 2007; Chang et al., 2015). This function can be useful for analyses involving cross-validation of genomic predictions based on BLUP solutions of HapAllele effects. Below is an example using simulated scores from a normal distribution:
 
 ```r
 # Create a score data.frame
@@ -468,7 +531,7 @@ score$CENTER <- 0
 score$SCALE <- 1
 
 # Compute profiles
-profile <- ghap.profile(score, haplo, ncores = 2)
+profile <- ghap.profile(score, haplo, ncores = 1)
 head(profile)
 #     POP      ID    PROFILE
 #   1 ASW NA19904 -38.410381
@@ -504,14 +567,7 @@ See below an example of five individuals from the ASW population with phased gen
 ======================================================================
 ```
 
-This format is conveniently obtained with very little manipulation from the output of widely used phasing software, such as SHAPEIT2 (O'Connell et al., 2014). For instance, to format your SHAPEIT2 files with UNIX standard commands use:
-
-```c
-tail -n +3 shapeit2_file.sample | cut -d' ' -f1,2 > GHapfile.samples
-cut -d' ' -f1-5 shapeit2_file.haps > GHapfile.markers
-cut -d' ' -f1-5 --complement shapeit2_file.haps > GHapfile.phase
-```
-
+This format can be obtained from Oxford HAPS/SAMPLE files with the `ghap.oxford2phase` function, from fastPHASE v1.4.0 files with the `ghap.fast2phase` function, or from VCF files with the `ghap.vcf2phase` function. Importantly, since version 2.0.0, **GHap** requires the **.phase** file to be converted into a binary file with suffix **.phaseb** with the `ghap.compress` function prior to loading in R. Each allele is stored as a bit in that file. Bits for any given marker are arranged in a sequence of bytes. Since each marker requires storage of 2\*nsamples bits, the number of bytes consumed by a single marker in the output file is ceiling(2\*nsamples). If the number of alleles is not a multiple of 8, bits in the remainder of the last byte are filled with 0. All functions in GHap were carefully designed to decode the bytes of a marker in such a way that trailing bits are ignored if present.
 
 \pagebreak
 
@@ -586,6 +642,9 @@ The example below was extracted from the first two HapBlocks for the HapMap data
 |     ASW NA20348    |  CHR2_B6 2 2511429 3071611 CTACACCGAT  |           0 0 1 0 0          |
 ==============================================================================================
 ```
+
+Since version 2.0.0, **GHap** requires the **.hapgenotypes** file to be converted into a binary file with suffix **.hapgenotypesb**. This is achieved by running the haplotyping procedure with the option `binary = TRUE`. The **.hapgenotypesb** file is essentially the same matrix as described above compressed into bits. For seamless compatibility with softwares that use PLINK binary files, the compression is performed using the SNP-major bed format.
+
 \pagebreak
 
 ##Methods 3 - Haplotype statistics
@@ -649,11 +708,11 @@ $2-2p_k, \text{ for 0 copies of allele } k$
 
 Since the $2p_k$ term represents the mean allele count when HWE is assumed, an alternative coding not requiring HWE is obtained from replacing $2p_k$ by the sample mean. This is the approach we adopted in GHap. If the locus is bi-allelic, the allele coding collapses to the genotype coding used for SNP markers. In fact, SNP-based regression is revealed here as a special case of haplotype-based regression, where HapBlocks are bi-allelic and of size 1 bp. This coding also reveals that regression on HapAlleles is in fact equivalent to fitting haplotypes as pseudo bi-allelic markers, provided that an arbitrary HapAllele (in this case the minor HapAllele) has been discarded (i.e., set as the basis for contrasts). Without loss of generality, rare and nearly fixed HapAlleles can also be discarded in order to reduce the number of predictors, procedure that is analogous to exclusion of SNPs by minor allele frequency in SNP-based regression.
 
-The coding presented above is also used to compute the haplotype-based relationship matrix. Briefly, çet $\mathbf{M}$ be the centered $N$ x $H$ matrix of HapGenotypes, where $N$ is the number of observations and $H$ is the number of HapAlleles. The HapAllele correlations among individuals can be computed as:
+The coding presented above is also used to compute the haplotype-based relationship matrix. Briefly, let $\mathbf{M}$ be the centered $N$ x $H$ matrix of HapGenotypes, where $N$ is the number of observations and $H$ is the number of HapAlleles. The HapAllele correlations among individuals can be computed as:
 
-$$\mathbf{K} = q\mathbf{MDM}'$$
+$$\mathbf{K} = q\mathbf{MDM^\text{T}}$$
 
-where $\mathbf{D} = \text{diag}(d_i)$, $d_i$ is the weight of HapAllele $i$ (default $d_i = 1$), and $q = tr(\mathbf{MDM}')^{-1}N$. Notice that this is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008). 
+where $\mathbf{D} = \text{diag}(d_i)$, $d_i$ is the weight of HapAllele $i$ (default $d_i = 1$) and $q = tr(\mathbf{MDM^\text{T}})^{-1}N$. Notice that this is a generalization of the SNP-based genomic relationship matrix (VanRaden, 2008). 
 
 \pagebreak
 
@@ -661,8 +720,8 @@ where $\mathbf{D} = \text{diag}(d_i)$, $d_i$ is the weight of HapAllele $i$ (def
 
 The least squares regression procedure in **GHap** tests each HapAllele at a time for association with phenotypes. The fixed effect, error variance and test statistic of a given HapAllele are estimated as:
 
-$$\hat{\alpha} = (\mathbf{m}'\mathbf{m})^{-1}\mathbf{m}'\mathbf{y}$$
-$$VAR(\hat{\alpha}) = (\mathbf{m}'\mathbf{m})^{-1}\hat{\sigma}_e^2$$
+$$\hat{\alpha} = (\mathbf{m}^\text{T}\mathbf{m})^{-1}\mathbf{m}^\text{T}\mathbf{y}$$
+$$VAR(\hat{\alpha}) = (\mathbf{m}^\text{T}\mathbf{m})^{-1}\hat{\sigma}_e^2$$
 $${t_i}^{2} = \frac{\hat{\alpha}^2}{VAR(\hat{\alpha})}$$
 
 Under the null hypothesis that the regression coefficient is zero $t^2 \sim \chi^2(\nu = 1)$. Although nothing prevents the user to fit raw phenotypes, the use of adjusted records accounting for covariates, polygenic effects and other potential random effects is advisible. For instance, residuals from the mixed model analysis could be used as the response variable for regression on HapAlleles. The user must be aware of two known caveats associated with this approach:
@@ -671,7 +730,7 @@ Under the null hypothesis that the regression coefficient is zero $t^2 \sim \chi
 
 2 - Each HapAllele being tested is also included in the kinship matrix, such that the HapAllele is included twice in the model: as fixed and random effect. This problem is known as proximal contamination (Listgarten et al., 2012).
 
-In the first case, we can use genomic control to recover p-values to an unbiased scale (Devlin and Roeder, 1999; Amin et al., 2007). However, not much can be done regarding the estimates of the effects. As a general recommendation, if the user is only interested in p-values, the regression analysis discussed here should be sufficient. When effect estimates are of interest, the user can select genome-wide significant HapAlleles and include them as fixed effects in the full mixed model. For the second case, a leave-one-chromosome-out (LOCO analysis) procedure can mitigate proximal contamination (Yang et al., 2014). An alternative to these methods is to use polygenic effects as response instead of residuals. However, this can lead to a higher false-positive rate (Ekine et al., 2014).
+In the first case, we can use genomic control to recover p-values to an unbiased scale (Devlin and Roeder, 1999; Amin et al., 2007). However, not much can be done regarding the estimates of the effects. As a general recommendation, if the user is only interested in p-values, the regression analysis discussed here should be sufficient. When effect estimates are of interest, the user can select genome-wide significant HapAlleles and include them as fixed effects in the full mixed model. For the second case, a leave-one-chromosome-out (LOCO analysis) procedure can mitigate proximal contamination (Yang et al., 2014). An alternative to these methods is to use polygenic effects as response instead of residuals. However, this can lead to a higher false-positive rate (Ekine et al., 2014). Finally, if the analysis is intended to screen the genome for recovering effects that are not captured by single markers, a more traditional kinship based on single markers instead of HapAlleles could be used to fit the linear mixed model.
 
 \pagebreak
 
@@ -681,9 +740,9 @@ Recall that the generalized linear mixed model assumes:
 
 $$\mathbf{u} \mid \sigma_u^2 \sim N(0,\mathbf{K}\sigma_{u}^2)$$
 
-If we let $\mathbf{K} = q\mathbf{MDM}'$, it follows that $\mathbf{u} = \mathbf{M}\mathbf{\alpha}$. This means that we can convert between individual breeding values and HapAllele effects (Strandén and Garrick, 2009):
+If we let $\mathbf{K} = q\mathbf{MDM^\text{T}}$, it follows that $\mathbf{u} = \mathbf{M}\mathbf{\alpha}$. This means that we can convert between individual breeding values and HapAllele effects (Strandén and Garrick, 2009):
 
-$$\mathbf{\hat{\alpha}} = q\mathbf{DM}'\mathbf{K}^{-1}\mathbf{\hat{u}}$$
+$$\mathbf{\hat{\alpha}} = q\mathbf{DM^\text{T}}\mathbf{K}^{-1}\mathbf{\hat{u}}$$
 
 \pagebreak
 
@@ -697,104 +756,36 @@ where $H_T$ is the total gene diversity (i.e., expected heterozygosity in the po
 
 \pagebreak
 
-##Methods 8 - Ancestry assignment
-
-The procedure follows the method described by Bolormaa et al. (2011):
-
-$$Pr(parent1) = \frac{p_{parent1}}{p_{parent1}+p_{parent2}} \text{ and } Pr(parent2) = \frac{p_{parent2}}{p_{parent1}+p_{parent2}}$$
-
-where $p_{parent1}$ and $p_{parent2}$ are the HapAllele frequencies in the first and second parental populations, respectively. Assignments are performed as follows: if the probability of one of the parents exceeds a user-defined threshold (default = 0.60), the HapAllele origin is assigned to that parental population. Parental probabilities are set to zero if the HapAllele frequency in the parental populations are lower than a certain threshold (default = 0.05). 
-
-\pagebreak
-
 ##Appendix 1 - Using GHap outputs in third-party software
 
-When the haplotyping procedure is performed using very large datasets, post hoc analyses may be too computationally demanding to be performed in **R**. Also, existing pipelines designed to analyze bi-allelic SNP data can be extended to the analysis of haplotypes by simply incorporating the output generated by the `ghap.hap2tped()` function in **GHap**. This function creates a set of files that mimic a standard PLINK (Purcell et al., 2007; Chang et al., 2015) tped file, where HapAllele counts 0, 1 and 2 are recoded as NN, NH and HH genotypes (N = NULL and H = haplotype allele), as if HapAlleles were bi-alelic markers. This coding scheme is acceptable for any given analysis relying on genotype counts, as long as the user specifies that the analysis should be done using the H allele as reference for counts. You can specify reference alleles using the .tref file in PLINK with the reference-allele command. The name for each pseudo-marker is composed by a concatenation (separated by "_") of block name, start, end, and haplotype allele identity. Pseudo-marker positions are computed as (start+end)/2. Of note, for applications such as GWAS it is advisible to output only MAJOR and REGULAR HapAlleles, since SINGLETONS and MINOR HapAlleles will not contribute to the analysis.
+When the haplotyping procedure is performed using very large datasets, post hoc analyses may be too computationally demanding to be performed in **R**. Also, existing pipelines designed to analyze bi-allelic SNP data can be extended to the analysis of haplotypes by simply incorporating the output generated by the `ghap.hap2plink()` function in **GHap**. This function creates a set of files that mimic a standard PLINK (Purcell et al., 2007; Chang et al., 2015) binary file (bed/bim/fam), where HapAllele counts 0, 1 and 2 are recoded as NN, NH and HH genotypes (N = NULL and H = haplotype allele), as if HapAlleles were bi-alelic markers. This coding scheme is acceptable for any given analysis relying on genotype counts, as long as the user specifies that the analysis should be done using character H as the reference for counts. The name for each pseudo-marker is composed by a concatenation (separated by "_") of block name, start, end, and haplotype allele identity. Pseudo-marker positions are computed as (start+end)/2. Of note, for applications such as GWAS it is advisible to output only MAJOR and REGULAR HapAlleles, since SINGLETONS and MINOR HapAlleles will not contribute to the analysis.
 
 The following lines of code show one example of how the output from **GHap** can be articulated with analyses that are routinely applied to unphased SNP marker data. First, we can export the **GHap.haplo** object to use in PLINK:
 
 ```r
-# Subset common haplotypes
-hapstats <- ghap.hapstats(haplo, ncores = 2)
-common <- hapstats$TYPE %in% c("REGULAR","MAJOR") &
- hapstats$FREQ > 0.05 &
- hapstats$FREQ < 0.95
-haplo <- ghap.subsethaplo(haplo,unique(haplo$id),common)
-
-# Output GHap.haplo object
-ghap.outhaplo(haplo = haplo, outfile = "humansub")
-
-# Convert to tped
-ghap.hap2tped(infile = "humansub", outfile = "humansub")
+# Convert file to plink
+ghap.hap2plink(haplo, outfile = "human")
 ```
 
 Then, we can use PLINK to perform a principal components analysis on our data:
 
 ```c
-#Converting the tped output to PLINK binary
-plink --tfile humansub --reference-allele humansub.tref --make-bed --out humansub
-
 #Performing PCA analysis in PLINK
 #Correlations and scale with the GHap package are almost perfect (r = 0.999)
-plink --bfile humansub --reference-allele humansub.tref --pca 2 --out humansub
+plink --bfile human --pca 2 --out human
 ```
 
 \pagebreak
 
-##Appendix 2 - Handling multiple chromosomes and analysis of single marker data
+##Appendix 2 - Diagram of functions
 
-By default **GHap** works at single chromosome data, specially when it comes to the haplotyping procedure. However, once HapAlleles have been called on each chromosome, the user can choose to load one chromosome at a time or to load all chromosomes together with *ghap.loadhaplo()*. This can be typically achieved by the use of the *ghap.mergehaplo()* function, or alternatively by concatenation of single chromosome files.
+The diagram below ilustrates the overall organization of the functions within the **GHap** package. Arrows indicate analysis flow and colors encode analysis context.
 
-You can also fool **GHap** to take in single SNP data (say you wish to compare haplotype x single SNP association results). To do so, you only need to see SNPs as distinct 1bp HapBlocks, and count number of copies of a particular allele (e.g., minor or reference allele). Then, *ghap.loadhaplo()* will naturally load single SNP data. Be aware that for some analyses special consideration may be required, so be sure that you know exactly what you are doing!
-
-\pagebreak
-
-##Appendix 3 - Benchmarking
-
-Benchmarking of the main tasks in the package was first performed in a Dell PowerEdge-T410 workstation with 16 GB RAM and two 64-bit Intel Xeon 2.13 GHz CPUs, running R v3.2.5 under Ubuntu 10.04 LTS. Performance was evaluated using the HapMap data with varying number of cores.
-
-```c
-Benchmarking of GHap with varying numbers of cores.
-1,011 samples and 20,000 markers were used.
-Time was measured in seconds and averaged over 10 replicates.
-=======================================================================
-|             |                   Number of cores                     |
-|    Task     |========================================================
-|             |       1     |      2      |      4      |      8      |
-=======================================================================
-| Load data   |   9.86±0.11 |       -     |       -     |       -     |
-| Filtering*  |   8.20±0.23 |   4.20±0.14 |   2.60±0.13 |   1.59±0.04 |
-| Haplotyping | 169.50±1.01 |  82.47±0.22 |  42.00±0.33 |  23.00±0.19 |
-=======================================================================
-*Minor allele frequency prunning and subsetting
+```{r pressure, echo=FALSE, fig.cap="Diagram of functions within the package", fig.pos="H", out.width = '100%'}
+knitr::include_graphics("diagram_20200718.png")
 ```
 
-Another benchmarking was conducted to assess the influence of dataset size on performance. This benchmarking was done using a Dell T5500 workstation with 24 GB and 64-bit Intel Xeon 3.07GHz CPU, running R v3.2.3 under Red Hat Enterprise Linux Workstation release 6.7.
-
-```c
-Benchmarking of GHap with 8 cores and varying numbers of markers and subjects.
-Time was measured in seconds and averaged over 10 replicates.
-=============================================================================
-|             |             |                     Task                      |
-|   Markers   |   Samples   |================================================
-|             |             |   Load data   |   Filtering  |   Haplotyping  |
-=============================================================================
-|    10,000   |     1,000   |    2.62±0.01  |   0.34±0.04  |    6.29±0.10   |
-|             |     5,000   |   13.14±0.03  |   0.91±0.01  |   28.33±0.25   |
-|             |    10,000   |   26.04±0.07  |   1.49±0.05  |   57.42±0.41   |
-|             |    50,000   |  134.44±0.54  |   7.98±0.20  |  282.44±1.43   |
-|   100,000   |     1,000   |   28.02±0.07  |   3.30±0.09  |   76.64±0.31   |
-|             |     5,000   |  143.01±0.22  |   9.95±0.13  |  286.89±0.90   |
-|             |    10,000   |  281.83±0.91  |  26.73±0.51  |  561.97±1.48   |
-|             |    50,000*  |       -       |       -      |        -       |
-=============================================================================
-*The analysis of 50,000 samples and 100,000 markers consumed more than
-the maximum RAM available (24GB) and was unfeasible using available hardware
-```
-In summary, **GHap** scales linearly as a function of markers or subjects. We noticed a limitation in the analysis of a large number of individuals, but this was related to RAM availability. Analyses of such large datasets may be accomplished using high-performance computing facilities or by subdividing the data in batches with smaller sample sizes.
-
 \pagebreak
-
 
 ##References
 
@@ -812,7 +803,13 @@ B. Devlin and K. Roeder. Genomic control for association studies. Biometrics. 19
 
 C. C. Ekine et al. Why breeding values estimated using familial data should not be used for genome-wide association studies. G3. 2014. 4:341-347.
 
+R. J. Haasl  et al. Genetic ancestry inference using support vector machines, and the active emergence of a unique American population. Eur J Hum Genet. 2013. 21(5):554-62.
+
 J. Listgarten et al. Improved linear mixed models for genome-wide association studies. Nat. Methods. 2012. 9:525-526.
+
+R-R. Loh P-R et al. Reference-based phasing using the Haplotype Reference Consortium panel. Nat Genet. 2016. 48(11):1443-1448.
+
+D. Meyer et al. e1071: Misc Functions of the Department of Statistics, Probability Theory Group (e1071). TU Wien. 2019 R Package Version 1.7-0.1. http://cran.r-project.org/web/packages/e1071/index.html.
 
 M. Nei. Analysis of Gene Diversity in Subdivided Populations. PNAS. 1973. 70, 3321-3323.
 
@@ -830,7 +827,8 @@ The International HapMap 3 Consortium. Integrating common and rare genetic varia
 
 P. M. VanRaden. Efficient methods to compute genomic predictions. J. Dairy. Sci. 2008. 91:4414-4423.
 
+W. M. Venables and B. D. Ripley. Modern Applied Statistics with S. Fourth Edition. 2002. Springer, New York. ISBN 0-387-95457-0.
+
 H. Wang et al. Genome-wide association mapping including phenotypes from relatives without genotypes. Genet Res. 2012. 94:73-83.
 
 J. Yang et al. Advantages and pitfalls in the application of mixed-model association methods. Nat. Genet. 2014. 46: 100-106.
-

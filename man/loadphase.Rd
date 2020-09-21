@@ -2,33 +2,47 @@
 \alias{ghap.loadphase}
 
 \title{
-  Load phased genotype data
+  Load binary phased genotype data
 }
 \description{
-  This function loads phased genotype data and converts them into a native GHap.phase object.
+  This function loads binary phased genotype data and converts them into a native GHap.phase object.
 }
 \usage{
-  ghap.loadphase(samples.file, markers.file, phase.file, verbose = TRUE)
+  ghap.loadphase(input.file = NULL, samples.file = NULL, markers.file = NULL,
+                 phaseb.file = NULL, verbose = TRUE)
 }
 
 \arguments{
+
+  If all input files share the same prefix, the user can use the following shortcut option:
+
+  \item{input.file}{
+    Prefix for input files.
+  }
+  
+  For backward compatibility, the user can still point to input files separately:
+  
   \item{samples.file}{
     Individual information.
   }
   \item{markers.file}{
     Variant map information.
   }
-  \item{phase.file}{
-    Phased genotype matrix.
+  \item{phaseb.file}{
+    Binary phased genotype matrix, such as supplied by the \code{\link{ghap.compress}} function.
   }
+  
+  To turn loading progress-tracking on or off please use:
+  
   \item{verbose}{
     A logical value specfying whether log messages should be printed (default = TRUE).
   }
 }
+
 \value{
   The returned GHap.phase object is a list with components:
     \item{chr}{
-      A character value indicating chromosome identity. The current version of the package can handle only one chromosome at time.
+      A character vector indicating chromosome identity for each marker.
     }
   \item{nsamples}{
     An integer value for the sample size.
@@ -67,22 +81,12 @@
     A character vector with alternative alleles. This information is obtained from the fifth column of the marker map file.
   }
   \item{phase}{
-    A \code{\link{big.matrix}} object containing the phased genotype matrix.
+    A character value giving the pathway to the binary phased genotype matrix.
   }
-  
-  The supported format is composed of three files with suffix:
-    \itemize{
-      \item \strong{.samples}: space-delimited file without header containing two columns: Population and ID. Please notice that the Population column serves solely for the purpose of grouping samples, so the user can define any arbitrary family/cluster/subgroup and use as a "population" tag. 
-      \item \strong{.markers}: space-delimited file without header containing five columns: Chromosome, Marker, Position (in bp), Reference Allele (A0) and Alternative Allele (A1). Markers should be on a single chromosome and sorted by position. Repeated positions are tolerated, but a warning message is given when the data is loaded.
-      \item \strong{.phase}: space-delimited file without header containing the phased genotype matrix. The dimension of the matrix is expected to be \emph{m x 2n}, where \emph{m} is the number of markers and \emph{n} is the number of individuals (i.e., two columns per individual, representing the two phased chromosome alleles). Alleles must be coded as 0 and 1. No missing values are allowed, since imputation is assumed to be part of the phasing procedure.
-    }
-  
-  
 }
 
 \author{
-  Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
-  
+  Yuri Tani Utsunomiya <ytutsunomiya@gmail.com> \cr
   Marco Milanesi <marco.milanesi.mm@gmail.com>
 }
 
@@ -91,13 +95,20 @@
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
 # 
 # ### RUN ###
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Load data using prefix
+# phase <- ghap.loadphase(input.file = "human")
+#
+# # Load data using file names
+# phase <- ghap.loadphase(samples.file = "human.samples",
+#                         markers.file = "human.markers",
+#                         phaseb.file = "human.phaseb")
 
 }
-

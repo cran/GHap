@@ -8,8 +8,9 @@ Haplotype genotypes
 Generate matrix of HapGenotypes for user-defined blocks.
 }
 \usage{
-ghap.haplotyping(phase, blocks, outfile, freq = c(0,1), drop.minor = FALSE,
- batchsize = 500, ncores = 1, verbose = TRUE)
+ghap.haplotyping(phase, blocks, outfile, freq=c(0,1), drop.minor=FALSE,
+                 only.active.samples=TRUE, only.active.markers=TRUE,
+                 batchsize=NULL, binary=TRUE, ncores=1, verbose=TRUE)
 
 }
 
@@ -29,8 +30,17 @@ ghap.haplotyping(phase, blocks, outfile, freq = c(0,1), drop.minor = FALSE,
   \item{drop.minor}{
    A logical value specfying whether the minor allele should be excluded from the output (default = FALSE).
   }
+  \item{only.active.samples}{
+    A logical value specifying whether only active samples should be included in the output (default = TRUE).
+  }
+  \item{only.active.markers}{
+    A logical value specifying whether only active markers should be used for haplotyping (default = TRUE).
+  }
   \item{batchsize}{
-   A numeric value controlling the number of haplotype blocks to be processed and written to output at a time (default = 500).
+   A numeric value controlling the number of haplotype blocks to be processed and written to output at a time (default = nblocks/10).
+  }
+  \item{binary}{
+   A logical value specfying whether the output file should be binary (default = TRUE).
   }
   \item{ncores}{
    A numeric value specifying the number of cores to be used in parallel computations (default = 1).
@@ -46,8 +56,8 @@ ghap.haplotyping(phase, blocks, outfile, freq = c(0,1), drop.minor = FALSE,
   \itemize{
     \item \strong{.hapsamples}: space-delimited file without header containing two columns: Population and Individual ID.
     \item \strong{.hapalleles}: space-delimited file without header containing five columns: Block Name, Chromosome, Start and End Position (in bp), and HapAllele.
-    \item \strong{.hapgenotypes}: space-delimited file without header containing the HapGenotype matrix (coded as 0, 1 or 2 copies of the HapAllele). The dimension of the matrix is \emph{m x n}, where \emph{m} is the number of HapAlleles and \emph{n} is the number of individuals.
-
+    \item \strong{.hapgenotypes}: if binary = FALSE, a space-delimited file without header containing the HapGenotype matrix (coded as 0, 1 or 2 copies of the HapAllele). The dimension of the matrix is \emph{m x n}, where \emph{m} is the number of HapAlleles and \emph{n} is the number of individuals.
+    \item \strong{.hapgenotypesb}: if binary = TRUE (default), the same matrix as described above compressed into bits. For seamless compatibility with softwares that use PLINK binary files, the compression is performed using the SNP-major bed format.
 }
 }
 
@@ -62,23 +72,23 @@ Marco Milanesi <marco.milanesi.mm@gmail.com>
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
 # 
-# # Subset data - markers with maf > 0.05
-# maf <- ghap.maf(phase, ncores = 2)
-# markers <- phase$marker[maf > 0.05]
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
+# # Load phase data
+# phase <- ghap.loadphase(input.file = "human")
 # 
 # # Generate blocks of 5 markers sliding 5 markers at a time
-# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+# blocks <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
 #
 # 
 # ### RUN ###
 # 
-# # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+# # Haplotyping
+# ghap.haplotyping(phase = phase, blocks = blocks, outfile = "human",
+#                  binary = T, ncores = 1)
 
 }

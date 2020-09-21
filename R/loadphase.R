@@ -1,19 +1,33 @@
 #Function: ghap.loadphase
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya & Marco Milanesi
 #Contact: ytutsunomiya@gmail.com, marco.milanesi.mm@gmail.com
 #Description: Load phased genotypes
 
-ghap.loadphase<-function(
-  samples.file,
-  markers.file,
-  phase.file,
+ghap.loadphase <- function(
+  input.file = NULL,
+  samples.file = NULL,
+  markers.file = NULL,
+  phaseb.file = NULL,
   verbose = TRUE
 ){
   
+  # Check stem file name
+  if(is.null(input.file) == FALSE){
+    samples.file <- paste(input.file, "samples", sep=".")
+    markers.file <- paste(input.file, "markers", sep=".")
+    phaseb.file <- paste(input.file, "phaseb", sep=".")
+  }else if(is.null(phaseb.file)){
+    stop("Please provide a binary phase file!")
+  }else if(is.null(samples.file)){
+    stop("Please provide a samples file!")
+  }else if(is.null(markers.file)){
+    stop("Please provide a markers file!")
+  }
+  
   #Check files
-  if(file.exists(phase.file) == FALSE){
+  if(file.exists(phaseb.file) == FALSE){
     stop("Could not find phased genotypes file")
   }
   if(file.exists(markers.file) == FALSE){
@@ -27,93 +41,120 @@ ghap.loadphase<-function(
   if(verbose == TRUE){
     cat("\nReading in marker map information... ")
   }
-  marker<-read.table(markers.file,header=FALSE,colClasses = c("character","character","numeric","character","character"))
+  marker <- fread(markers.file, header=FALSE)
   
   #Check if the map file contains correct dimension
   if(ncol(marker) != 5){
-    stop("Marker map contains wrong number of columns (expected 3)")
-  }
-  
-  #Check if the file contains information on a single chromosome
-  chr<-unique(marker[,1])
-  if(length(chr) != 1){
-    stop("Your marker map file contains information on more than one chromosome")
+    stop("[ERROR]\n\n Marker map contains wrong number of columns (expected 5)")
   }
   
   #Check for duplicated marker ids
-  if(length(unique(marker[,2])) < nrow(marker)){
-    stop("Your marker map file contains duplicated ids!")
+  dup <- which(duplicated(marker$V2))
+  ndup <- length(dup)
+  if(ndup > 0){
+    emsg <- paste("[ERROR]\n\nYour marker map file contains", ndup, "duplicated ids")
+    stop(emsg)
   }
   
   #Check if markers are sorted by bp
-  if(identical(marker[,3],sort(marker[,3])) == FALSE){
-    stop("Markers are not sorted by base pair position")
+  chr <- unique(marker$V1)
+  nchr <- length(chr)
+  chrorder <- chr[order(nchar(chr),chr)]
+  negpos <- diff(marker$V3)
+  negpos <- length(which(negpos < 0)) + 1
+  if(identical(chr,chrorder) == FALSE | negpos != nchr){
+    stop("[ERROR]\n\nMarkers are not sorted by chromosome and base pair position")
   }
   
   #Check for duplicated bp
-  if(length(unique(marker[,3])) != nrow(marker)){
-    warning("Your marker map file contains duplicated ids! Be careful in your analysis!")
+  dup <- paste(marker$V1,marker$V3)
+  dup <- which(duplicated(dup))
+  ndup <- length(dup)
+  if(ndup > 0){
+    emsg <- paste("[ERROR]\n\nYour marker map file contains", ndup, "duplicated positions!")
+    stop(emsg)
   }
   
   #Map passed checks
   if(verbose == TRUE){
     cat("Done.\n")
-    cat(paste("A total of ", nrow(marker), " markers were found for chromosome ",chr,".\n",sep=""))
+    cat(paste("A total of ", nrow(marker),
+              " markers were found in ", nchr," chromosomes.\n",sep=""))
   }
   
   #Load sample file
   if(verbose == TRUE){
     cat("Reading in sample information... ")
   }
-  sample<-read.table(samples.file,header=FALSE,colClasses = "character")
+  sample <- fread(samples.file, header=FALSE)
   
   #Check if the sample file contains correct dimension
   if(ncol(sample) != 2){
-    stop("Sample file contains wrong number of columns (expected 2)")
+    stop("[ERROR]\n\nSample file contains wrong number of columns (expected 2)")
   }
   
   #Check for duplicated ids
-  if(length(unique(sample[,2])) < nrow(sample)){
-    stop("Sample file contains duplicated ids!")
+  dup <- which(duplicated(sample$V2))
+  ndup <- length(dup)
+  if(ndup > 0){
+    emsg <- paste("[ERROR]\n\nSample file contains", ndup, "duplicated ids!")
+    stop(emsg)
   }
   
-  pop <- rep(sample[,1],each=2)
-  ids <- rep(sample[,2],each=2)
+  # Samples passed check
+  pop <- rep(sample$V1,each=2)
+  ids <- rep(sample$V2,each=2)
   if(verbose == TRUE){
     cat("Done.\n")
-    cat(paste("A total of ", nrow(sample), " individuals were found in ", length(unique(pop)), " populations.\n",sep=""))
+    cat(paste("A total of ", nrow(sample), " individuals were found in ",
+              length(unique(pop)), " populations.\n",sep=""))
   }
   
-  #Create GHap.phase object
-  phase<-NULL
-  phase$chr<-chr
-  phase$nsamples<-nrow(sample)
-  phase$nmarkers<-nrow(marker)
-  phase$nsamples.in<-nrow(sample)
-  phase$nmarkers.in<-nrow(marker)
-  phase$pop<-pop
-  phase$id<-ids
-  phase$id.in<-rep(TRUE,times=length(phase$id))
-  phase$marker<-marker[,2]
-  phase$marker.in<-rep(TRUE,times=length(phase$marker))
-  phase$bp<-marker[,3]
-  phase$A0<-marker[,4]
-  phase$A1<-marker[,5]
+  #Create GHap2.phase object
+  phase <- NULL
+  phase$chr <- marker$V1
+  phase$nsamples <- nrow(sample)
+  phase$nmarkers <- nrow(marker)
+  phase$nsamples.in <- nrow(sample)
+  phase$nmarkers.in <- nrow(marker)
+  phase$pop <- pop
+  phase$id <- ids
+  phase$id.in <- rep(TRUE,times=length(phase$id))
+  phase$marker <- marker$V2
+  phase$marker.in <- rep(TRUE,times=length(phase$marker))
+  phase$bp <- marker$V3
+  phase$A0 <- marker$V4
+  phase$A1 <- marker$V5
+  phase$phase <- normalizePath(path = phaseb.file)
+  
+  # Check phaseb file
   if(verbose == TRUE){
-    cat("Reading in phased genotypes... (may take a few minutes for large datasets)\n")
+    cat("Checking integrity of phased genotypes... ")
   }
-  phase$phase<-read.big.matrix(filename = phase.file,sep = " ",header = FALSE,type = "char")
-  
-  #Check phase file dimensions
-  
-  if(nrow(phase$phase) != phase$nmarkers & ncol(phase$phase) != 2*phase$nsamples){
-    stop("Your phased genotypes file contains wrong dimensions")
+  bitloss <- 8 - ((2*phase$nsamples) %% 8)
+  if(bitloss == 8){
+    bitloss <- 0
+  }
+  nbytes <- file.info(phaseb.file)$size
+  ebytes <- phase$nmarkers*(2*phase$nsamples + bitloss)/8
+  if(nbytes != ebytes){
+    osize <- 2*phase$nsamples*(nbytes/ceiling((2*phase$nsamples)/8))
+    osize <- floor(osize)
+    esize <- 2*phase$nsamples*phase$nmarkers
+    emsg <- "[ERROR]\n\n\nYour binary phased genotypes file contains wrong dimensions:\n"
+    emsg <- paste(emsg, "Expected 2*",phase$nsamples,"*",phase$nmarkers," = ", esize, " alleles",sep="")
+    emsg <- paste(emsg, "but found", osize)
+    stop(emsg)
+  }else{
+    if(verbose == TRUE){
+      cat("Done.\n") 
+    }
   }
   
   #Return ghap object
   class(phase) <- "GHap.phase"
   if(verbose == TRUE){
-    cat("Your GHap.phase object was successfully loaded without apparent errors.\n\n")
+    cat("Your GHap.phase object was successfully created without apparent errors.\n\n")
   }
   return(phase)
   

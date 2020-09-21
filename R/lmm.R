@@ -1,6 +1,6 @@
 #Function: ghap.lmm
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Mixed linear model fitting
@@ -94,7 +94,7 @@ ghap.lmm<-function(
   map <- rep(rand.labels[1],times=nrow(rt$Ztlist[[1]]))
   if(length(rt$Ztlist) > 1){
     for(i in 2:length(rt$Ztlist)){
-      Zt <- rBind(Zt, rt$Ztlist[[i]])
+      Zt <- rbind(Zt, rt$Ztlist[[i]])
       map <- rep(rand.labels[i],times=nrow(rt$Ztlist[[i]]))
     }
   }

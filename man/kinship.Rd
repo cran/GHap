@@ -8,8 +8,8 @@ Kinship matrix from haplotypes
 This function computes a HapAllele-based kinship matrix from a GHap.haplo object.
 }
 \usage{
-ghap.kinship(haplo, weights, batchsize = 500, only.active.samples = TRUE,
- only.active.alleles = TRUE, verbose = TRUE)
+ghap.kinship(haplo, weights=NULL, batchsize=NULL, only.active.samples=TRUE,
+             only.active.alleles=TRUE, ncores=1, verbose=TRUE)
 }
 
 \arguments{
@@ -20,13 +20,16 @@ ghap.kinship(haplo, weights, batchsize = 500, only.active.samples = TRUE,
     A numeric vector providing HapAllele-specific weights.
   }
   \item{batchsize}{
-   A numeric value controlling the number of haplotype alleles to be processed at a time (default = 500).
+   A numeric value controlling the number of HapAlleles to be processed at a time (default = nalleles/10).
   }
   \item{only.active.samples}{
     A logical value specifying whether only active samples should be included in the output (default = TRUE).
   }
   \item{only.active.alleles}{
     A logical value specifying whether only active haplotype alleles should be included in the output (default = TRUE).
+  }
+  \item{ncores}{
+   A numeric value specifying the number of cores to be used in parallel computations (default = 1).
   }
   \item{verbose}{
    A logical value specfying whether log messages should be printed (default = TRUE).
@@ -48,8 +51,7 @@ where \eqn{\mathbf{D} = diag(d_i)}, \eqn{d_i} is the weight of HapAllele \emph{i
 }
 
 \author{
-Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
-
+Yuri Tani Utsunomiya <ytutsunomiya@gmail.com> \cr
 Marco Milanesi <marco.milanesi.mm@gmail.com>
 }
 
@@ -63,33 +65,33 @@ P. M. VanRaden. Efficient methods to compute genomic predictions. J. Dairy. Sci.
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
 # 
-# # Subset data - markers with maf > 0.05
-# maf <- ghap.maf(phase, ncores = 2)
-# markers <- phase$marker[maf > 0.05]
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
+# # Load phase data
+# phase <- ghap.loadphase(input.file = "human")
 # 
 # # Generate blocks of 5 markers sliding 5 markers at a time
-# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
-#
-# # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+# blocks <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+# 
+# # Haplotyping
+# ghap.haplotyping(phase = phase, blocks = blocks, outfile = "human",
+#                  binary = T, ncores = 1)
 #
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+# haplo <- ghap.loadhaplo(input.file = "human")
 #
 #
 # ### RUN ###
 # 
 # # Exclude minor alleles and singletons
-# hapstats <- ghap.hapstats(haplo, ncores = 2)
-# haplo <- ghap.subsethaplo(haplo,ids=haplo$id,alleles = hapstats$TYPE \%in\% c("REGULAR","MAJOR"))
+# hapstats <- ghap.hapstats(haplo, ncores = 1)
+# haplo <- ghap.subsethaplo(haplo,ids=haplo$id, alleles = hapstats$TYPE \%in\% c("REGULAR","MAJOR"))
 #
 # # Compute Kinship matrix
-# K <- ghap.kinship(haplo, batchsize = 100)
+# K <- ghap.kinship(haplo, ncores = 1)
 
 }

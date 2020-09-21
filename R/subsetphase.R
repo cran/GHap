@@ -1,6 +1,6 @@
 #Function: ghap.subsetphase
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Subset a GHap.phase object

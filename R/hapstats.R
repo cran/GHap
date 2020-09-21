@@ -1,6 +1,6 @@
 #Function: ghap.hapstats
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Summary statistics for haplotype alleles
@@ -8,9 +8,11 @@
 ghap.hapstats<-function(
   haplo,
   alpha=c(1,1),
+  batchsize=NULL,
   only.active.samples=TRUE,
   only.active.alleles=TRUE,
-  ncores=1
+  ncores=1,
+  verbose=TRUE
 ){
   
   
@@ -22,42 +24,100 @@ ghap.hapstats<-function(
   #Check if inactive alleles and samples should be reactived
   if(only.active.alleles == FALSE){
     haplo$allele.in <- rep(TRUE,times=haplo$nalleles)
-    haplo$nalleles.in<-length(which(haplo$allele.in))
+    haplo$nalleles.in <- length(which(haplo$allele.in))
   }
   if(only.active.samples == FALSE){
     haplo$id.in <- rep(TRUE,times=haplo$nsamples)
-    haplo$nsamples.in<-length(which(haplo$id.in))
+    haplo$nsamples.in <- length(which(haplo$id.in))
+  }
+  
+  # Get number of cores
+  if(Sys.info()["sysname"] == "Windows"){
+    if(ncores > 1 & verbose == TRUE){
+      cat("\nParallelization not supported yet under Windows (using a single core).")
+    }
+    ncores <- 1
+  }else{
+    ncores <- min(c(detectCores(), ncores))
+  }
+  
+  # Generate lookup table
+  lookup <- rep(NA,times=256)
+  lookup[1:2] <- c(0,1)
+  d <- 10
+  i <- 3
+  while(i <= 256){
+    b <- d + lookup[1:(i-1)]
+    lookup[i:(length(b)+i-1)] <- b
+    i <- i + length(b)
+    d <- d*10
+  }
+  lookup <- sprintf(fmt="%08d", lookup)
+  lookup <- sapply(lookup, function(i){intToUtf8(rev(utf8ToInt(i)))})
+  
+  #Generate batch index
+  if(is.null(batchsize) == TRUE){
+    batchsize <- ceiling(haplo$nalleles.in/10)
+  }
+  if(batchsize > haplo$nalleles.in){
+    batchsize <- haplo$nalleles.in
+  }
+  activealleles <- which(haplo$allele.in)
+  nbatches <- round(haplo$nalleles.in/(batchsize),digits=0) + 1
+  mybatch <- paste("B",1:nbatches,sep="")
+  batch <- rep(mybatch,each=batchsize)
+  batch <- batch[1:haplo$nalleles.in]
+  mybatch <- unique(batch)
+  nbatches <- length(mybatch)
+  
+  #Log message
+  if(verbose == TRUE){
+    cat("Processing ", haplo$nalleles.in, " HapAlleles in ", nbatches, " batches.\n", sep="")
+    cat("Inactive alleles will be ignored.\n")
   }
   
   #Hapstats iterate function
   hapstats.FUN <- function(j){
-    hap.geno <- haplo$genotypes[j,haplo$id.in]
-    N<-sum(hap.geno)
-    FREQ<-N/(2*haplo$nsamples.in)
-    O.HOM <- length(which(hap.geno == 2))
-    O.HET <- length(which(hap.geno == 1))
+    x <- hap.geno[j,]
+    N <- sum(x)
+    FREQ <- N/(2*length(x))
+    O.HOM <- length(which(x == 2))
+    O.HET <- length(which(x == 1))
     return(c(N,FREQ,O.HOM,O.HET))
   }
   
-  #Compute haplotype allele statistics
-  ncores <- min(c(detectCores(),ncores))
-  if(Sys.info()["sysname"] == "Windows"){
-    cat("\nParallelization not supported yet under Windows (using a single core).\n")
-    a <- lapply(X = which(haplo$allele.in), FUN = hapstats.FUN)
-  }else{
-    a <- mclapply(FUN=hapstats.FUN,X=which(haplo$allele.in),mc.cores = ncores)
-  }
-  a <- data.frame(matrix(unlist(a), nrow=haplo$nalleles.in, byrow=TRUE))
+  #Iterate batches
   hapstats <- NULL
   hapstats$BLOCK <- haplo$block[haplo$allele.in]
   hapstats$CHR <- haplo$chr[haplo$allele.in]
   hapstats$BP1 <- haplo$bp1[haplo$allele.in]
   hapstats$BP2 <- haplo$bp2[haplo$allele.in]
   hapstats$ALLELE<- haplo$allele[haplo$allele.in]
-  hapstats$N <- a[,1]
-  hapstats$FREQ <- a[,2]
-  hapstats$O.HOM <- a[,3]
-  hapstats$O.HET <- a[,4]
+  hapstats$N <- rep(NA, times=haplo$nalleles.in)
+  hapstats$FREQ <- rep(NA, times=haplo$nalleles.in)
+  hapstats$O.HOM <- rep(NA, times=haplo$nalleles.in)
+  hapstats$O.HET <- rep(NA, times=haplo$nalleles.in)
+  sumalleles <- 0
+  for(i in 1:nbatches){
+    idx <- which(batch == mybatch[i])
+    slice <- activealleles[idx]
+    hap.geno <- ghap.hslice(haplo = haplo, ids = which(haplo$id.in), alleles = slice,
+                            index = TRUE, lookup = lookup, ncores = ncores)
+    if(Sys.info()["sysname"] == "Windows"){
+      a <- lapply(X = which(haplo$allele.in), FUN = hapstats.FUN)
+    }else{
+      a <- mclapply(FUN=hapstats.FUN, X=1:nrow(hap.geno), mc.cores = ncores)
+    }
+    a <- data.frame(matrix(unlist(a), nrow=nrow(hap.geno), byrow=TRUE))
+    hapstats$N[idx] <- a[,1]
+    hapstats$FREQ[idx] <- a[,2]
+    hapstats$O.HOM[idx] <- a[,3]
+    hapstats$O.HET[idx] <- a[,4]
+    if(verbose == TRUE){
+      sumalleles <- sumalleles + length(idx)
+      cat(sumalleles, "HapAlleles processed.\r")
+    }
+  }
   hapstats$E.HOM <- (hapstats$FREQ^2)*haplo$nsamples.in
   hapstats$RATIO <- (hapstats$E.HOM+alpha[1])/(hapstats$O.HOM+alpha[2])
   hapstats$BIN.logP <- -1*pbinom(q = hapstats$O.HOM,size = haplo$nsamples.in,prob = hapstats$FREQ^2,lower.tail=TRUE,log.p = TRUE)/log(10)

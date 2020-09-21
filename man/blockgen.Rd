@@ -22,10 +22,10 @@
    A numeric value for the step size (default = 5).
   }
   \item{unit}{
-  A character value for the size unit used for the window and the step. It can be either "marker" or "kbp" (default = "marker").
+   A character value for the size unit used for the window and the step. It can be either "marker" or "kbp" (default = "marker").
   }
   \item{nsnp}{
-  A numeric value for the minimum number of markers per block.
+   A numeric value for the minimum number of markers per block.
   }
 }
 
@@ -60,22 +60,22 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
 # 
-# # Subset data - markers with maf > 0.05
-# maf <- ghap.maf(phase, ncores = 2)
-# markers <- phase$marker[maf > 0.05]
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
+# # Load phase data
+# phase <- ghap.loadphase(input.file = "human")
+# 
 # 
 # ### RUN ###
 # 
 # # Generate blocks of 5 markers sliding 5 markers at a time
 # blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
 # 
-# # Generate blocks of 100 kb sliding 100 kbp at a time
+# # Generate blocks of 100 kbp sliding 100 kbp at a time
 # blocks.kb <- ghap.blockgen(phase, windowsize = 100, slide = 100, unit = "kbp")
 
 }

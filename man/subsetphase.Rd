@@ -39,16 +39,20 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
+# 
+# # Load phase data
+# phase <- ghap.loadphase(input.file = "human")
 # 
 # 
 # ### RUN ###
 # 
 # # Subset data - markers with maf > 0.05
-# maf <- ghap.maf(phase, ncores = 2)
+# maf <- ghap.freq(phase, type = "maf", ncores = 1)
 # markers <- phase$marker[maf > 0.05]
 # phase <- ghap.subsetphase(phase, unique(phase$id), markers)
 

@@ -1,6 +1,6 @@
 #Function: ghap.kinship
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Compute haplotype covariance matrix
@@ -8,9 +8,10 @@
 ghap.kinship<-function(
   haplo,
   weights=NULL,
-  batchsize=500,
+  batchsize=NULL,
   only.active.samples=TRUE,
   only.active.alleles=TRUE,
+  ncores=1,
   verbose=TRUE
 ){
   
@@ -37,7 +38,37 @@ ghap.kinship<-function(
     stop("Vector of weights must have the same length as the number of haplotype alleles.")
   }
   
+  # Get number of cores
+  if(Sys.info()["sysname"] == "Windows"){
+    if(ncores > 1 & verbose == TRUE){
+      cat("\nParallelization not supported yet under Windows (using a single core).")
+    }
+    ncores <- 1
+  }else{
+    ncores <- min(c(detectCores(), ncores))
+  }
+  
+  # Generate lookup table
+  lookup <- rep(NA,times=256)
+  lookup[1:2] <- c(0,1)
+  d <- 10
+  i <- 3
+  while(i <= 256){
+    b <- d + lookup[1:(i-1)]
+    lookup[i:(length(b)+i-1)] <- b
+    i <- i + length(b)
+    d <- d*10
+  }
+  lookup <- sprintf(fmt="%08d", lookup)
+  lookup <- sapply(lookup, function(i){intToUtf8(rev(utf8ToInt(i)))})
+  
   #Generate batch index
+  if(is.null(batchsize) == TRUE){
+    batchsize <- ceiling(haplo$nalleles.in/10)
+  }
+  if(batchsize > haplo$nalleles.in){
+    batchsize <- haplo$nalleles.in
+  }
   activealleles <- which(haplo$allele.in)
   nbatches <- round(haplo$nalleles.in/(batchsize),digits=0) + 1
   mybatch <- paste("B",1:nbatches,sep="")
@@ -53,14 +84,18 @@ ghap.kinship<-function(
   }
   
   #Initialize kinship matrix
-  cat("Preparing",haplo$nsamples.in,"x",haplo$nsamples.in,"kinship matrix.\n")
+  if(verbose == TRUE){
+    cat("Preparing",haplo$nsamples.in,"x",haplo$nsamples.in,"kinship matrix.\n")
+  }
   K <- Matrix(data = 0, nrow = haplo$nsamples.in, ncol = haplo$nsamples.in)
   K <- as(as(K,"dsyMatrix"),"dspMatrix")
   
   #Kinship iterate function
   kinship.FUN<-function(i){
     slice <- activealleles[batch == mybatch[i]]
-    Ztmp <- as(haplo$genotypes[slice,haplo$id.in], "dgeMatrix")
+    hap.geno <- ghap.hslice(haplo = haplo, ids = which(haplo$id.in), alleles = slice,
+                            index = TRUE, lookup = lookup, ncores = ncores)
+    Ztmp <- as(hap.geno, "dgeMatrix")
     Ztmp.mean <- apply(X = Ztmp,MARGIN = 1,FUN = mean)
     Ztmp <- (Ztmp - Ztmp.mean)
     K <- K + crossprod(Ztmp*sqrt(weights[batch == mybatch[i]]))

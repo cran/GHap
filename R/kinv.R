@@ -1,6 +1,6 @@
 #Function: ghap.kinv
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Inverse kinship matrix
@@ -9,7 +9,8 @@ ghap.kinv<-function(
   kinship,           #Kinship matrix
   method="nearPD",   #Inversion method
   ncores=1,          #Number of cores to use
-  proven=NULL        #Names of proven subjects to use in APY
+  proven=NULL,       #Names of proven subjects to use in APY
+  verbose=TRUE
 ){
   
   #Check if kinship matrix is symmetrical
@@ -47,7 +48,9 @@ ghap.kinv<-function(
     }
     ncores <- min(c(detectCores(),ncores))
     if(Sys.info()["sysname"] == "Windows"){
-      cat("\nParallelization not supported yet under Windows (using a single core).\n")
+      if(ncores > 1 & verbose == TRUE){
+        cat("\nParallelization not supported yet under Windows (using a single core).\n")
+      }
       Jnni <- Diagonal(x = 1/unlist(lapply(X = nonproven,FUN = dFUN)))
     }else{
       Jnni <- Diagonal(x = 1/unlist(mclapply(X = nonproven,FUN = dFUN, mc.cores = ncores)))

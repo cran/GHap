@@ -1,9 +1,9 @@
 #Function: ghap.fst
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya & Marco Milanesi
 #Contact: ytutsunomiya@gmail.com, marco.milanesi.mm@gmail.com
-#Description: Calculate Fst each haploblock 
+#Description: Calculate Fst for each haploblock 
 
 ghap.fst <- function(blockstats.pop1, blockstats.pop2, blockstats.tot){
   

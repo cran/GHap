@@ -1,6 +1,6 @@
 #Function: ghap.simpheno
 #License: GPLv3 or later
-#Modification date: 18 Feb 2017
+#Modification date: 11 Sep 2020
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Simulate phenotypes
@@ -14,7 +14,8 @@ ghap.simpheno<-function(
   nrep=1,
   balanced=TRUE,
   major=NULL,
-  seed=NULL
+  seed=NULL,
+  ncores=1
 ){
   
   #Check if haplo is a GHap.haplo object
@@ -31,6 +32,20 @@ ghap.simpheno<-function(
   if (length(which(colnames(kinship) %in% haplo$id)) != ncol(kinship)) {
     stop("All ids in the kinship matrix must be present in the GHap.haplo object.")
   }
+  
+  # Generate lookup table
+  lookup <- rep(NA,times=256)
+  lookup[1:2] <- c(0,1)
+  d <- 10
+  i <- 3
+  while(i <= 256){
+    b <- d + lookup[1:(i-1)]
+    lookup[i:(length(b)+i-1)] <- b
+    i <- i + length(b)
+    d <- d*10
+  }
+  lookup <- sprintf(fmt="%08d", lookup)
+  lookup <- sapply(lookup, function(i){intToUtf8(rev(utf8ToInt(i)))})
   
   # Simulate uncorrelated random effects
   if(is.null(seed) == FALSE){
@@ -58,7 +73,8 @@ ghap.simpheno<-function(
     ids <- 1:haplo$nsamples
     names(ids) <- haplo$id
     ids <- ids[colnames(kinship)]
-    X <- as.matrix(haplo$genotypes[major,ids])
+    X <- ghap.hslice(haplo = haplo, ids = ids, alleles = major,
+                     index = TRUE, lookup = lookup, ncores = ncores)
     if(length(major) > 1){
       X <- scale(t(X))
       X <- scale(X)

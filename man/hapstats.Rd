@@ -2,14 +2,14 @@
 \alias{ghap.hapstats}
 
 \title{
-Haplotype statistics
+Haplotype allele statistics
 }
 \description{
-HapAllele summary statistics.
+Summary statistics for HapAlleles.
 }
 \usage{
-ghap.hapstats(haplo, alpha = c(1,1), only.active.samples = TRUE,
- only.active.alleles = TRUE, ncores = 1)
+ghap.hapstats(haplo, alpha=c(1,1), batchsize=NULL, only.active.samples=TRUE,
+              only.active.alleles=TRUE, ncores=1, verbose=TRUE)
 }
 
 \arguments{
@@ -19,6 +19,9 @@ ghap.hapstats(haplo, alpha = c(1,1), only.active.samples = TRUE,
   \item{alpha}{
    A numeric vector of size 2 specifying the shrinkage parameters for the expected-to-observed homozygotes ratio. Default is c(1,1).
   }
+  \item{batchsize}{
+   A numeric value controlling the number of HapAlleles to be processed at a time (default = nalleles/10).
+  }
   \item{only.active.samples}{
     A logical value specifying whether only active samples should be included in the output (default = TRUE).
   }
@@ -27,6 +30,9 @@ ghap.hapstats(haplo, alpha = c(1,1), only.active.samples = TRUE,
   }
   \item{ncores}{
    A numeric value specifying the number of cores to be used in parallel computations (default = 1).
+  }
+  \item{verbose}{
+   A logical value specfying whether log messages should be printed (default = TRUE).
   }
 }
 
@@ -72,14 +78,13 @@ ghap.hapstats(haplo, alpha = c(1,1), only.active.samples = TRUE,
   log10(1/P) or -log10(P) for Hardy-Weinberg equilibrium assuming number of homozygotes follows a Poisson distribution.
  }
  \item{TYPE}{
-  Category of the haplotype: "SINGLETON" = unique haplotype of its block; "ABSENT" = the frequency of the allele is 0; "MINOR" = the least frequent haplotype of its block (in the case of ties, only the first haplotype is marked); "MAJOR" = the most frequent hapotype of its block (ties are also resolved by marking the first haplotype); "REGULAR" = the haplotype does not fall in any of the previous categories. Categories "SINGLETON", "MINOR" and "MAJOR" only apply for blocks where frequencies sum to 1.
+  Category of the HapAllele: "SINGLETON" = single allele of its block; "ABSENT" = the frequency of the allele is 0; "MINOR" = the least frequent allele of its block (in the case of ties, only the first allele is marked); "MAJOR" = the most frequent allele of its block (ties are also resolved by marking the first allele); "REGULAR" = the allele does not fall in any of the previous categories. Categories "SINGLETON", "MINOR" and "MAJOR" only apply for blocks where frequencies sum to 1.
  }
  
 }
 
 \author{
-Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
-
+Yuri Tani Utsunomiya <ytutsunomiya@gmail.com> \cr
 Marco Milanesi <marco.milanesi.mm@gmail.com>
 }
 
@@ -88,29 +93,33 @@ Marco Milanesi <marco.milanesi.mm@gmail.com>
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
 # 
-# # Subset data - markers with maf > 0.05
-# maf <- ghap.maf(phase, ncores = 2)
-# markers <- phase$marker[maf > 0.05]
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
+# # Load phase data
+# phase <- ghap.loadphase(input.file = "human")
 # 
 # # Generate blocks of 5 markers sliding 5 markers at a time
-# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
-#
-# # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+# blocks <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+# 
+# # Haplotyping
+# ghap.haplotyping(phase = phase, blocks = blocks, outfile = "human",
+#                  binary = T, ncores = 1)
 #
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+# haplo <- ghap.loadhaplo(input.file = "human")
 #
 #
 # ### RUN ###
 #
+# Subset
+# ids <- haplo$id[which(haplo$pop == "CEU")]
+# haplo <- ghap.subsethaplo(haplo = haplo, ids = ids, alleles = haplo$allele.in)
+#
 # #Compute haplotype statistics
-# hapstats <- ghap.hapstats(haplo, ncores = 2)
+# hapstats <- ghap.hapstats(haplo, ncores = 1)
 
 }

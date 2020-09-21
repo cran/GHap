@@ -45,33 +45,33 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
 # # Copy the example data in the current working directory
-# ghap.makefile()
+# exfiles <- ghap.makefile()
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load data
-# phase <- ghap.loadphase("human.samples", "human.markers", "human.phase")
+# # Compress phase data
+# ghap.compress(input.file = "human", out.file = "human")
 # 
-# # Subset data - markers with maf > 0.05
-# maf <- ghap.maf(phase, ncores = 2)
-# markers <- phase$marker[maf > 0.05]
-# phase <- ghap.subsetphase(phase, unique(phase$id), markers)
+# # Load phase data
+# phase <- ghap.loadphase(input.file = "human")
 # 
 # # Generate blocks of 5 markers sliding 5 markers at a time
-# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
-#
-# # Generate matrix of haplotype genotypes
-# ghap.haplotyping(phase, blocks.mkr, batchsize = 100, ncores = 2, outfile = "human")
+# blocks <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+# 
+# # Haplotyping
+# ghap.haplotyping(phase = phase, blocks = blocks, outfile = "human",
+#                  binary = T, ncores = 1)
 #
 # # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypes")
+# haplo <- ghap.loadhaplo(input.file = "human")
 # 
 # # Exclude minor alleles and singletons
-# hapstats <- ghap.hapstats(haplo, ncores = 2)
-# haplo <- ghap.subsethaplo(haplo,ids=haplo$id,alleles = hapstats$TYPE \%in\% c("REGULAR","MAJOR"))
+# hapstats <- ghap.hapstats(haplo, ncores = 1)
+# haplo <- ghap.subsethaplo(haplo,ids=haplo$id, alleles = hapstats$TYPE \%in\% c("REGULAR","MAJOR"))
 #
 # # Compute Kinship matrix
-# K <- ghap.kinship(haplo, batchsize = 100)
+# K <- ghap.kinship(haplo, ncores = 1)
 #
-# 
+#
 # ### RUN ###
 # 
 # # PCA analysis
