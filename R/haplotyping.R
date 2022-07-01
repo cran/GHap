@@ -1,12 +1,12 @@
 #Function: ghap.haplotyping
 #License: GPLv3 or later
-#Modification date: 11 Sep 2020
+#Modification date: 5 Jun 2022
 #Written by: Yuri Tani Utsunomiya & Marco Milanesi
 #Contact: ytutsunomiya@gmail.com, marco.milanesi.mm@gmail.com
 #Description: Output haplotype genotype matrix for user-defined haplotype blocks
 
 ghap.haplotyping <- function(
-  phase,
+  object,
   blocks,
   outfile,
   freq=c(0,1),
@@ -20,7 +20,7 @@ ghap.haplotyping <- function(
 ){
   
   #Check if phase is a GHap.phase object
-  if(class(phase) != "GHap.phase"){
+  if(inherits(object, "GHap.phase") == FALSE){
     stop("Argument phase must be a GHap.phase object.")
   }
   
@@ -45,19 +45,19 @@ ghap.haplotyping <- function(
   
   #Check if inactive markers and samples should be reactived
   if(only.active.markers == FALSE){
-    phase$marker.in <- rep(TRUE,times=phase$nmarkers)
-    phase$nmarkers.in <- length(which(phase$marker.in))
+    object$marker.in <- rep(TRUE,times=object$nmarkers)
+    object$nmarkers.in <- length(which(object$marker.in))
   }
   if(only.active.samples == FALSE){
-    phase$id.in <- rep(TRUE,times=2*phase$nsamples)
-    phase$nsamples.in <- length(which(phase$id.in))/2
+    object$id.in <- rep(TRUE,times=2*object$nsamples)
+    object$nsamples.in <- length(which(object$id.in))/2
   }
   
   #Identify activated samples
-  ids.in <- which(phase$id.in)
-  id <- phase$id[ids.in]
+  ids.in <- which(object$id.in)
+  id <- object$id[ids.in]
   id <- id[1:length(id) %% 2 == 0]
-  pop <- phase$pop[ids.in]
+  pop <- object$pop[ids.in]
   pop <- pop[1:length(pop) %% 2 == 0]
   ids.n <- length(id)
   
@@ -91,25 +91,6 @@ ghap.haplotyping <- function(
     }
   }
   
-  #Windows warning
-  ncores <- min(c(detectCores(), ncores))
-  if(Sys.info()["sysname"] == "Windows" & ncores > 1 & verbose == TRUE){
-    cat("\nParallelization not supported yet under Windows (using a single core).\n")
-  }
-  
-  # Initialize lookup table for input
-  lookup1 <- rep(NA,times=256)
-  lookup1[1:2] <- c(0,1)
-  d <- 10
-  i <- 3
-  while(i <= 256){
-    b <- d + lookup1[1:(i-1)]
-    lookup1[i:(length(b)+i-1)] <- b
-    i <- i + length(b)
-    d <- d*10
-  }
-  lookup1 <- sprintf(fmt="%08d", lookup1)
-  
   # Initialize lookup table for output
   lookup2 <- rep(NA,times=256)
   lookup2[1:2] <- c(0,1)
@@ -141,27 +122,25 @@ ghap.haplotyping <- function(
     block.info <- blocks[i,c("BLOCK","CHR","BP1","BP2")]
     
     #SNPs in the block
-    snps <- which(phase$chr == block.info$CHR &
-                    phase$bp >= block.info$BP1 &
-                    phase$bp <= block.info$BP2 &
-                    phase$marker.in == TRUE)
-    phase.A0 <- phase$A0[snps]
-    phase.A1 <- phase$A1[snps]
+    snps <- which(object$chr == block.info$CHR &
+                    object$bp >= block.info$BP1 &
+                    object$bp <= block.info$BP2 &
+                    object$marker.in == TRUE)
+    phase.A0 <- object$A0[snps]
+    phase.A1 <- object$A1[snps]
     
     if(length(snps) >= 1){
       
       #Subset block
       if(length(snps) == 1){
-        block.subset <- ghap.pslice(phase = phase,
-                                    ids = unique(phase$id[ids.in]),
-                                    markers = phase$marker[snps],
-                                    lookup = lookup1)
+        block.subset <- ghap.slice(object = object,
+                                   ids = unique(object$id[ids.in]),
+                                   variants = object$marker[snps])
         haplotypes <- as.character(block.subset)
       }else{
-        block.subset <- ghap.pslice(phase = phase,
-                                    ids = unique(phase$id[ids.in]),
-                                    markers = phase$marker[snps],
-                                    lookup = lookup1)
+        block.subset <- ghap.slice(object = object,
+                                   ids = unique(object$id[ids.in]),
+                                   variants = object$marker[snps])
         haplotypes <- apply(block.subset,MARGIN = 2, paste, collapse="")
       }
       
@@ -216,11 +195,14 @@ ghap.haplotyping <- function(
   
   #Iterate blocks
   nblocks.done <- 0
+  ncores <- min(c(detectCores(), ncores))
   for(i in 1:length(id1)){
     
     #Compute blocks
     if(Sys.info()["sysname"] == "Windows"){
-      mylines <- unlist(lapply(FUN = block.iter.FUN, X = id1[i]:id2[i]))
+      cl <- makeCluster(ncores)
+      mylines <- unlist(parLapply(cl = cl, fun = block.iter.FUN, X = id1[i]:id2[i]))
+      stopCluster(cl)
     }else{
       mylines <- unlist(mclapply(FUN = block.iter.FUN, X = id1[i]:id2[i], mc.cores = ncores))
     }
@@ -238,7 +220,9 @@ ghap.haplotyping <- function(
       hapgenotypes.out <- mylines[1:length(mylines) %% 2 == 0]
       if(binary == TRUE){
         if(Sys.info()["sysname"] == "Windows"){
-          hapgenotypes.out <- unlist(lapply(FUN = toBitFUN, X = 1:length(hapgenotypes.out)))
+          cl <- makeCluster(ncores)
+          hapgenotypes.out <- unlist(parLapply(cl = cl, fun = toBitFUN, X = 1:length(hapgenotypes.out)))
+          stopCluster(cl)
         }else{
           hapgenotypes.out <- unlist(mclapply(FUN = toBitFUN, X = 1:length(hapgenotypes.out), mc.cores = ncores))
         }
@@ -262,4 +246,3 @@ ghap.haplotyping <- function(
   
   
 }
-

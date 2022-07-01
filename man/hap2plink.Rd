@@ -8,11 +8,11 @@
  This function takes a HapGenotypes matrix (as generated with the \code{\link{ghap.haplotyping}} function) and converts it to PLINK binary (bed/bim/fam) format.
 }
 \usage{
-ghap.hap2plink(haplo, outfile)
+ghap.hap2plink(object, outfile)
 }
 
 \arguments{
-  \item{haplo}{
+  \item{object}{
     A GHap.haplo object.
   }
   \item{outfile}{
@@ -37,31 +37,31 @@ J. Yang et al. GCTA: A tool for genome-wide complex trait analysis. Am. J. Hum. 
 
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
-# # Copy the example data in the current working directory
-# exfiles <- ghap.makefile()
+# # Copy phase data in the current working directory
+# exfiles <- ghap.makefile(dataset = "example",
+#                          format = "phase",
+#                          verbose = TRUE)
 # file.copy(from = exfiles, to = "./")
 # 
-# # Compress phase data
-# ghap.compress(input.file = "human", out.file = "human")
+# ### RUN ###
 # 
-# # Load phase data
-# phase <- ghap.loadphase(input.file = "human")
+# # Load data
+# phase <- ghap.loadphase("example")
 # 
-# # Generate blocks of 5 markers sliding 5 markers at a time
-# blocks <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+# # Generate blocks of 5 markers
+# blocks <- ghap.blockgen(phase, windowsize = 5,
+#                         slide = 5, unit = "marker")
 # 
 # # Haplotyping
-# ghap.haplotyping(phase = phase, blocks = blocks, outfile = "human",
+# ghap.haplotyping(phase = phase, blocks = blocks, outfile = "example",
 #                  binary = T, ncores = 1)
-#
-# # Load haplotype genotypes
-# haplo <- ghap.loadhaplo("human.hapsamples", "human.hapalleles", "human.hapgenotypesb")
-#
-#
+# 
+# # Load haplotype genotypes using prefix
+# haplo <- ghap.loadhaplo("example")
+# 
 # ### RUN ###
-#
+# 
 # # Convert to plink
-# ghap.hap2plink(haplo, outfile = "human")
+# ghap.hap2plink(haplo, outfile = "example")
 
 }
-

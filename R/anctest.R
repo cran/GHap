@@ -1,13 +1,13 @@
 #Function: ghap.anctest
 #License: GPLv3 or later
-#Modification date: 11 Sep 2020
+#Modification date: 3 Jun 2022
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com, marco.milanesi.mm@gmail.com
 #Description: Predict ancestry of haplotypes
 
 ghap.anctest <- function(
-  phase,
-  blocks,
+  object,
+  blocks = NULL,
   prototypes,
   test = NULL,
   only.active.samples = TRUE,
@@ -16,76 +16,72 @@ ghap.anctest <- function(
   verbose = TRUE
 ){
   
-  # Check if phase is a GHap.phase object-------------------------------------------------------------
-  if(class(phase) != "GHap.phase"){
+  # Check if object is of class GHap.phase -------------------------------------
+  if(inherits(object, "GHap.phase") == FALSE){
     stop("Argument phase must be a GHap.phase object.")
   }
   
-  # Check if inactive markers and samples should be reactived-----------------------------------------
+  # Check if inactive markers and samples should be reactived ------------------
   if(only.active.markers == FALSE){
-    phase$marker.in <- rep(TRUE,times=phase$nmarkers)
-    phase$nmarkers.in <- length(which(phase$marker.in))
+    object$marker.in <- rep(TRUE,times=object$nmarkers)
+    object$nmarkers.in <- length(which(object$marker.in))
   }
   if(only.active.samples == FALSE){
-    phase$id.in <- rep(TRUE,times=2*phase$nsamples)
-    phase$nsamples.in <- length(which(phase$id.in))/2
+    object$id.in <- rep(TRUE,times=2*object$nsamples)
+    object$nsamples.in <- length(which(object$id.in))/2
   }
   
-  # Organize prototype dataframe ---------------------------------------------------------------------
-  nprotmrk <- length(which(prototypes$MARKER %in% phase$marker))
+  # Organize prototype dataframe -----------------------------------------------
+  nprotmrk <- length(which(prototypes$MARKER %in% object$marker))
   if(nprotmrk != nrow(prototypes)){
-    stop("Markers listed in the prototypes dataframe should be present in the GHap.phase object.")
+    emsg <- "\nMarkers in the prototypes should also be present in the object."
+    stop(emsg)
   }
-  if(identical(prototypes$MARKER, phase$marker) == FALSE){
+  if(identical(prototypes$MARKER, object$marker) == FALSE){
     protmrk <- prototypes$MARKER
-    tmp <- data.frame(IDX = 1:phase$nmarkers, MARKER = phase$marker, stringsAsFactors = FALSE)
+    tmp <- data.frame(IDX = 1:object$nmarkers, MARKER = object$marker,
+                      stringsAsFactors = FALSE)
     prototypes <- merge(x = tmp, y = prototypes, by = "MARKER", all.x=TRUE)
     prototypes <- prototypes[order(prototypes$IDX),-2]
-    phase$marker.in <- phase$marker %in% protmrk & phase$marker.in == TRUE
-  }
-
-  # Map test samples----------------------------------------------------------------------------------
-  test.idx <- which(phase$id %in% test & phase$id.in == TRUE)
-  
-  # Get number of cores-------------------------------------------------------------------------------
-  if(Sys.info()["sysname"] == "Windows"){
-    if(ncores > 1 & verbose == TRUE){
-      cat("\nParallelization not supported yet under Windows (using a single core).")
-    }
-    ncores <- 1
-  }else{
-    ncores <- min(c(detectCores(), ncores))
+    object$marker.in <- object$marker %in% protmrk & object$marker.in == TRUE
   }
   
-  # Initialize lookup table----------------------------------------------------------------------------
-  lookup <- rep(NA,times=256)
-  lookup[1:2] <- c(0,1)
-  d <- 10
-  i <- 3
-  while(i <= 256){
-    b <- d + lookup[1:(i-1)]
-    lookup[i:(length(b)+i-1)] <- b
-    i <- i + length(b)
-    d <- d*10
-  }
-  lookup <- sprintf(fmt="%08d", lookup)
+  # Map test samples -----------------------------------------------------------
+  test.idx <- which(object$id %in% test & object$id.in == TRUE)
   
-  # Initialize block iteration function---------------------------------------------------------------
+  # Check if blocks exist ------------------------------------------------------
+  if(is.null(blocks) == TRUE){
+    
+    # Calculate marker density
+    mrkdist <- diff(object$bp)
+    mrkdist <- mrkdist[which(mrkdist > 0)]
+    density <- mean(mrkdist)
+    
+    # Generate blocks for admixture events
+    g <- 10
+    window <- (100e+6)/(2*g)
+    window <- ceiling(window/density)
+    step <- ceiling(window/4)
+    blocks <- ghap.blockgen(object, windowsize = window,
+                            slide = step, unit = "marker")
+  }
+  
+  # Initialize block iteration function ----------------------------------------
   blockfun <- function(b){
     
     #Get block info
     block.info <- blocks[b, c("BLOCK","CHR","BP1","BP2")]
     
     #SNPs in the block
-    snps <- which(phase$chr == block.info$CHR &
-                  phase$bp >= block.info$BP1 &
-                  phase$bp <= block.info$BP2 &
-                  phase$marker.in == TRUE)
+    snps <- which(object$chr == block.info$CHR &
+                    object$bp >= block.info$BP1 &
+                    object$bp <= block.info$BP2 &
+                    object$marker.in == TRUE)
     blocksize <- length(snps)
     
     #Get test haplotypes
-    Mtst <- ghap.pslice(phase = phase, ids = test.idx, markers = snps,
-                        index = TRUE, lookup = lookup, verbose = FALSE)
+    Mtst <- ghap.slice(object = object, ids = test.idx, variants = snps,
+                       index = TRUE, verbose = FALSE)
     Mref <- prototypes[snps,-1]
     
     #Prediction
@@ -98,8 +94,8 @@ ghap.anctest <- function(
       pred[h] <- which(sq == min(sq))
     }
     pred <- colnames(Mref)[pred]
-    ids <- phase$id[test.idx]
-    pops <- phase$pop[test.idx]
+    ids <- object$id[test.idx]
+    pops <- object$pop[test.idx]
     names(pred) <- ids
     
     #Make output
@@ -117,20 +113,33 @@ ghap.anctest <- function(
     return(out)
   }
   
-  # Compute ancestry----------------------------------------------------------------------------------
+  
+  
+  # Compute ancestry -----------------------------------------------------------
+  ncores <- min(c(detectCores(), ncores))
   if(verbose == TRUE){
     cat("\nPredicting ancestry of haplotypes... ")
   }
-  if(Sys.info()["sysname"] == "Windows"){
+  if(ncores == 1){
     results <- lapply(FUN = blockfun, X = 1:nrow(blocks))
   }else{
-    results <- mclapply(FUN = blockfun, X = 1:nrow(blocks), mc.cores = ncores)
+    if(Sys.info()["sysname"] == "Windows"){
+      cl <- makeCluster(ncores)
+      clusterEvalQ(cl, library(Matrix))
+      varlist <- list("blocks","object","test.idx")
+      clusterExport(cl = cl, varlist = varlist, envir=environment())
+      results <- unlist(parLapply(cl = cl, fun = blockfun, X = 1:nrow(blocks)))
+      stopCluster(cl)
+    }else{
+      results <- mclapply(FUN = blockfun, X = 1:nrow(blocks), mc.cores = ncores)
+    }
   }
   if(verbose == TRUE){
     cat("Done.\n")
     cat("Assembling results... ")
   }
-  results <- data.frame(matrix(unlist(results), ncol=8, byrow=TRUE), stringsAsFactors = F)
+  results <- data.frame(matrix(unlist(results), ncol=8, byrow=TRUE),
+                        stringsAsFactors = F)
   colnames(results) <- c("BLOCK","CHR","BP1","BP2","POP","ID","HAP1","HAP2")
   results$BP1 <- as.numeric(results$BP1)
   results$BP2 <- as.numeric(results$BP2)
@@ -138,7 +147,7 @@ ghap.anctest <- function(
     cat("Done.\n")
   }
   
-  # Return results------------------------------------------------------------------------------------
+  # Return results -------------------------------------------------------------
   return(results)
   
   

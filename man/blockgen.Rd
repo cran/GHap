@@ -8,12 +8,13 @@
  This function generates HapBlocks based on sliding windows. The window and the step size can be specified in markers or kbp. For each window, block coordinates are generated.
 }
 \usage{
- ghap.blockgen(phase, windowsize = 10, slide = 5, unit = "marker", nsnp = 2)
+ ghap.blockgen(object, windowsize = 10, slide = 5,
+               unit = "marker", nsnp = 2)
 }
 
 \arguments{
-  \item{phase}{
-   A GHap.phase object
+  \item{object}{
+   A GHap.phase object.
   }
   \item{windowsize}{
    A numeric value for the size of the window (default = 10).
@@ -59,24 +60,24 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
-# # Copy the example data in the current working directory
-# exfiles <- ghap.makefile()
+# # Copy phase data in the current working directory
+# exfiles <- ghap.makefile(dataset = "example",
+#                          format = "phase",
+#                          verbose = TRUE)
 # file.copy(from = exfiles, to = "./")
 # 
-# # Compress phase data
-# ghap.compress(input.file = "human", out.file = "human")
-# 
-# # Load phase data
-# phase <- ghap.loadphase(input.file = "human")
-# 
+# # Load data
+# phase <- ghap.loadphase("example")
 # 
 # ### RUN ###
 # 
 # # Generate blocks of 5 markers sliding 5 markers at a time
-# blocks.mkr <- ghap.blockgen(phase, windowsize = 5, slide = 5, unit = "marker")
+# blocks.mkr <- ghap.blockgen(phase, windowsize = 5,
+#                             slide = 5, unit = "marker")
 # 
 # # Generate blocks of 100 kbp sliding 100 kbp at a time
-# blocks.kb <- ghap.blockgen(phase, windowsize = 100, slide = 100, unit = "kbp")
+# blocks.kb <- ghap.blockgen(phase, windowsize = 100,
+#                            slide = 100, unit = "kbp")
+
 
 }
-

@@ -8,14 +8,16 @@
   This function uses prototype alleles to predict ancestry of haplotypes in test samples.
 }
 \usage{
- ghap.anctest(phase, blocks, prototypes, test = NULL,
-              only.active.samples = TRUE, only.active.markers = TRUE,
+ ghap.anctest(object, blocks = NULL,
+              prototypes, test = NULL,
+              only.active.samples = TRUE,
+              only.active.markers = TRUE,
               ncores = 1, verbose = TRUE)
 }
 
 \arguments{
 
-  \item{phase}{
+  \item{object}{
    A GHap.phase object.
   }
   \item{blocks}{
@@ -72,7 +74,7 @@ The function returns a dataframe with the following columns:
 }
 
 \details{
-For each interrogated block, tested haplotypes are assigned to their nearest centroids (i.e., the pseudo-lineages with the smallest Euclidean distances).
+For each interrogated block, tested haplotypes are assigned to their nearest centroids (i.e., the pseudo-lineages with the smallest Euclidean distances). If no blocks are supplied, the function automatically builds blocks compatible with admixture up to 10 generations in the past based on intermarker distances. This has been chosen according to simulation results, where the use of haplotype blocks compatible with recent admixture (~10 generations) retained reasonable accuracy across most scenarios, regardless of the age of admixture.
 }
 
 \author{
@@ -83,15 +85,15 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
-# # Copy the example data in the current working directory
-# exfiles <- ghap.makefile()
+# # Copy phase data in the current working directory
+# exfiles <- ghap.makefile(dataset = "example",
+#                          format = "phase",
+#                          verbose = TRUE)
 # file.copy(from = exfiles, to = "./")
 # 
-# # Compress phase data
-# ghap.compress(input.file = "human", out.file = "human")
-# 
 # # Load phase data
-# phase <- ghap.loadphase(input.file = "human")
+# 
+# phase <- ghap.loadphase("example")
 # 
 # ### RUN ###
 # 
@@ -107,29 +109,40 @@ Yuri Tani Utsunomiya <ytutsunomiya@gmail.com>
 # window <- (100e+6)/(2*g)
 # window <- ceiling(window/density)
 # step <- ceiling(window/4)
-# blocks <- ghap.blockgen(phase, windowsize = window, slide = step, unit = "marker")
+# blocks <- ghap.blockgen(phase, windowsize = window,
+#                         slide = step, unit = "marker")
 # 
-# # Unsupervised analysis
-# prototypes <- ghap.anctrain(phase = phase, K = 3, ncores = 1)
-# hapadmix <- ghap.anctest(phase = phase, blocks = blocks, prototypes = prototypes,
-#                          test = unique(phase$id), ncores = 1)
+# # BestK analysis
+# bestK <- ghap.anctrain(object = phase, K = 5, tune = TRUE)
+# plot(bestK$ssq, type = "b", xlab = "K",
+#      ylab = "Within-cluster sum of squares")
 # 
-# # Supervised analysis with user-defined labels
-# pops <- phase$pop
-# labels <- pops
-# labels[which(labels \%in\% c("CEU","TSI"))] <- "Europe"
-# labels[which(labels \%in\% c("CHB","JPT","CHD"))] <- "Asia"
-# labels[which(labels \%in\% c("YRI","LWK"))] <- "Africa"
-# labels[which(labels \%in\% c("MKK","GIH","ASW","MEX"))] <- "Test"
-# phase$pop <- labels
-# train <- unique(phase$id[which(phase$pop != "Test")])
-# prototypes <- ghap.anctrain(phase = phase, train = train,
-#                             method = "supervised", ncores = 1)
-# hapadmix <- ghap.anctest(phase = phase, blocks = blocks, prototypes = prototypes,
-#                          test = unique(phase$id), ncores = 1)
-# phase$pop <- pops
+# # Unsupervised analysis with best K
+# prototypes <- ghap.anctrain(object = phase, K = 2)
+# hapadmix <- ghap.anctest(object = phase,
+#                          blocks = blocks,
+#                          prototypes = prototypes,
+#                          test = unique(phase$id))
+# anctracks <- ghap.ancsmooth(object = phase, admix = hapadmix)
+# ghap.ancplot(ancsmooth = anctracks)
+# 
+# # Supervised analysis
+# train <- unique(phase$id[which(phase$pop != "Cross")])
+# prototypes <- ghap.anctrain(object = phase, train = train,
+#                             method = "supervised")
+# hapadmix <- ghap.anctest(object = phase,
+#                          blocks = blocks,
+#                          prototypes = prototypes,
+#                          test = unique(phase$id))
+# anctracks <- ghap.ancsmooth(object = phase, admix = hapadmix)
+# ghap.ancplot(ancsmooth = anctracks)
+
 }
 
 \seealso{
  \code{\link{ghap.anctrain}}, \code{\link{ghap.ancsmooth}}, \code{\link{ghap.ancplot}}, \code{\link{ghap.ancmark}}
+}
+
+\references{
+Y.T. Utsunomiya et al. Unsupervised detection of ancestry tracks with the GHap R package. Methods in Ecology and Evolution. 2020. 11:1448–54.
 }

@@ -1,12 +1,12 @@
 #Function: ghap.anc2plink
 #License: GPLv3 or later
-#Modification date: 11 Sep 2020
+#Modification date: 3 Jun 2021
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Output ancestry genotype matrix
 
 ghap.anc2plink <- function(
-  phase,
+  object,
   ancsmooth,
   ancestry,
   outfile,
@@ -20,9 +20,9 @@ ghap.anc2plink <- function(
   verbose=TRUE
 ){
   
-  # Check if phase is a GHap.phase object
-  if(class(phase) != "GHap.phase"){
-    stop("Argument phase must be a GHap.phase object.")
+  # Check if object is a GHap.phase object
+  if(inherits(object, "GHap.phase") == FALSE){
+    stop("Argument object must be a GHap.phase object.")
   }
   
   # Insert suffix to outfile
@@ -46,32 +46,32 @@ ghap.anc2plink <- function(
   
   # Check if inactive markers should be reactived
   if(only.active.markers == FALSE){
-    phase$marker.in <- rep(TRUE,times=phase$nmarkers)
-    phase$nmarkers.in <- length(which(phase$marker.in))
+    object$marker.in <- rep(TRUE,times=object$nmarkers)
+    object$nmarkers.in <- length(which(object$marker.in))
   }
   if(only.active.samples == FALSE){
-    phase$id.in <- rep(TRUE,times=2*phase$nsamples)
-    phase$nsamples.in <- length(which(phase$id.in))/2
+    object$id.in <- rep(TRUE,times=2*object$nsamples)
+    object$nsamples.in <- length(which(object$id.in))/2
   }
   
   # Identify activated samples
-  ids.in <- which(phase$id.in)
-  id <- phase$id[ids.in]
+  ids.in <- which(object$id.in)
+  id <- object$id[ids.in]
   id <- id[1:length(id) %% 2 == 0]
-  pop <- phase$pop[ids.in]
+  pop <- object$pop[ids.in]
   pop <- pop[1:length(pop) %% 2 == 0]
   ids.n <- length(id)
   anchaplotypes <- ancsmooth$haplotypes[which(ancsmooth$haplotypes$ID %in% id),]
   
   # Identify activated markers
-  snp <- which(phase$marker.in)
+  snp <- which(object$marker.in)
   nsnp <- length(snp)
   
   # Check if ancestry exists
   ancs <- unique(anchaplotypes$ANCESTRY)
   ancs <- ancs[which(is.na(ancs) == FALSE)]
   if(ancestry %in% ancs == FALSE | length(ancestry) != 1){
-    emsg <- "\n\nSelected ancestry should be one among:"
+    emsg <- "\n\nSelected ancestry should be one in:"
     emsg <- paste(emsg, paste(sort(ancs), collapse = ", "), sep="\n")
     stop(emsg)
   }
@@ -106,12 +106,6 @@ ghap.anc2plink <- function(
     }
   }
   
-  # Windows warning
-  ncores <- min(c(detectCores(), ncores))
-  if(Sys.info()["sysname"] == "Windows" & ncores > 1 & verbose == TRUE){
-    cat("\nParallelization not supported yet under Windows (using a single core).\n")
-  }
-  
   # Initialize lookup table for output
   lookup2 <- rep(NA,times=256)
   lookup2[1:2] <- c(0,1)
@@ -138,8 +132,8 @@ ghap.anc2plink <- function(
   marker.iter.FUN<-function(j){
     
     # Get marker info
-    chr <- phase$chr[j]
-    bp <- phase$bp[j]
+    chr <- object$chr[j]
+    bp <- object$bp[j]
     
     # Map overlapping ancestry tracks
     tmp <- which(anchaplotypes$CHR == chr & anchaplotypes$BP1 <= bp & anchaplotypes$BP2 >= bp)
@@ -151,6 +145,9 @@ ghap.anc2plink <- function(
     miss <- which(X[,ncol(X)] != 0)
     x <- X[,ancestry]
     x[miss] <- NA
+    
+    # Order x vector
+    x <- x[id]
     
     # Calculate frequency
     x2 <- x[which(is.na(x) == FALSE)]
@@ -195,8 +192,11 @@ ghap.anc2plink <- function(
     idx <- snp[id1[i]:id2[i]]
     
     #Compute markers
+    ncores <- min(c(detectCores(), ncores))
     if(Sys.info()["sysname"] == "Windows"){
-      mylines <- unlist(lapply(FUN = marker.iter.FUN, X = idx))
+      cl <- makeCluster(ncores)
+      mylines <- unlist(parLapply(cl = cl, fun = marker.iter.FUN, X =idx))
+      stopCluster(cl)
     }else{
       mylines <- unlist(mclapply(FUN = marker.iter.FUN, X = idx, mc.cores = ncores))
     }
@@ -214,7 +214,7 @@ ghap.anc2plink <- function(
       bed.out <- bed.out[snpok]
       
       #Write bim
-      bim.out <- paste(phase$chr[idx], phase$marker[idx], "0", phase$bp[idx], "N H", sep=" ")
+      bim.out <- paste(object$chr[idx], object$marker[idx], "0", object$bp[idx], "N H", sep=" ")
       bim.con  <- file(bim, open = "a") 
       writeLines(text = bim.out, con=bim.con)
       close(con = bim.con)

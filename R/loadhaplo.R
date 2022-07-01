@@ -1,6 +1,6 @@
 #Function: ghap.loadhaplo
 #License: GPLv3 or later
-#Modification date: 11 Sep 2020
+#Modification date: 18 Feb 2021
 #Written by: Yuri Tani Utsunomiya & Marco Milanesi
 #Contact: ytutsunomiya@gmail.com, marco.milanesi.mm@gmail.com
 #Description: Load haplotype genotypes
@@ -41,7 +41,7 @@ ghap.loadhaplo<-function(
   if(verbose == TRUE){
     cat("\nReading in haplotype allele information... ")
   }
-  hapalleles <- fread(hapalleles.file, header=FALSE)
+  hapalleles <- fread(hapalleles.file, header=FALSE, colClasses = "character")
   
   #Check if the haplotype alleles file contains correct dimension
   if(ncol(hapalleles) != 5){
@@ -51,13 +51,16 @@ ghap.loadhaplo<-function(
       cat("Done.\n")
       cat(paste("A total of ", nrow(hapalleles), " haplotype alleles were found.\n",sep=""))
     }
+    hapalleles$V3 <- as.numeric(hapalleles$V3)
+    hapalleles$V4 <- as.numeric(hapalleles$V4)
   }
+
   
   #Load sample file
   if(verbose == TRUE){
     cat("Reading in sample information... ")
   }
-  sample <- fread(hapsamples.file, header=FALSE)
+  sample <- fread(hapsamples.file, header=FALSE, colClasses = "character")
   
   #Check if the sample file contains correct dimension
   if(ncol(sample) != 2){

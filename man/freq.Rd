@@ -8,13 +8,15 @@
   This function takes a GHap.phase object and computes the allele frequency for each marker.
 }
 \usage{
-  ghap.freq(phase, type = "maf", only.active.samples = TRUE, only.active.markers = TRUE,
-           batchsize = NULL, ncores = 1, verbose = TRUE)
+  ghap.freq(object, type = "maf",
+            only.active.samples = TRUE,
+            only.active.markers = TRUE,
+            ncores = 1, verbose = TRUE)
 }
 
 \arguments{
-  \item{phase}{
-    A GHap.phase object.
+  \item{object}{
+    A GHap object of type phase or plink.
   }
   \item{type}{
     A character value indicating which allele frequency to compute. Valid options are minor allele frequency ('maf', default), frequency of allele 0 ('A0') and frequency of allele 1 ('A1').
@@ -24,9 +26,6 @@
   }
   \item{only.active.markers}{
     A logical value specifying whether only active markers should be included in the output (default = TRUE).
-  }
-  \item{batchsize}{
-   A numeric value controlling the number of markers to be processed at a time (default = nmarkers/10).
   }
   \item{ncores}{
    A numeric value specifying the number of cores to be used in parallel computing (default = 1).
@@ -49,20 +48,30 @@
   
 # #### DO NOT RUN IF NOT NECESSARY ###
 # 
-# # Copy the example data in the current working directory
-# exfiles <- ghap.makefile()
+# # Copy phase data in the current working directory
+# exfiles <- ghap.makefile(dataset = "example",
+#                          format = "phase",
+#                          verbose = TRUE)
 # file.copy(from = exfiles, to = "./")
 # 
-# # Compress phase data
-# ghap.compress(input.file = "human", out.file = "human")
+# # Copy plink data in the current working directory
+# exfiles <- ghap.makefile(dataset = "example",
+#                          format = "plink",
+#                          verbose = TRUE)
+# file.copy(from = exfiles, to = "./")
 # 
-# # Load phase data
-# phase <- ghap.loadphase(input.file = "human")
-#
-#
 # ### RUN ###
 # 
-# # Calculate minor allele frequency
-# maf <- ghap.freq(phase, type = 'maf', ncores = 1)
+# # Calculate allele frequency for phase data
+# phase <- ghap.loadphase("example")
+# q <- ghap.freq(phase, type = 'A0')
+# p <- ghap.freq(phase, type = 'A1')
+# maf <- ghap.freq(phase, type = 'maf')
+# 
+# # Calculate allele frequency for plink data
+# plink <- ghap.loadplink("example")
+# q <- ghap.freq(plink, type = 'A0')
+# p <- ghap.freq(plink, type = 'A1')
+# maf <- ghap.freq(plink, type = 'maf')
 
 }

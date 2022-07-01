@@ -1,6 +1,6 @@
 #Function: ghap.manhattan
 #License: GPLv3 or later
-#Modification date: 11 Sep 2020
+#Modification date: 15 May 2021
 #Written by: Yuri Tani Utsunomiya
 #Contact: ytutsunomiya@gmail.com
 #Description: Generate a Manhattan plot
@@ -33,8 +33,10 @@ ghap.manhattan <- function(
     stop(emsg)
   }
   if(is.factor(data[,chr]) == FALSE){
-    emsg <- paste("Column '",chr,"' must be a vector of factors",sep="")
-    stop(emsg)
+    chrs <- unique(unique(data[,chr]))
+    nchr <- length(chrs)
+    chrorder <- chrs[order(nchar(chrs),chrs)]
+    data[,chr] <- factor(x = data[,chr], levels = chrorder, labels = chrorder)
   }
   
   
@@ -125,7 +127,7 @@ ghap.manhattan <- function(
     points(x = data$relpos, y = data[,y], col = colors[as.numeric(data[,chr])],
            type = type, pch = pch, cex = cex)
   }
-
+  
   
   
 }
